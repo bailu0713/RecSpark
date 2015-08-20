@@ -14,7 +14,6 @@ import redis.clients.jedis.Jedis
 
 import net.sf.json.JSONObject
 
-
 /**
  * Created by BaiLu on 2015/7/24.
  */

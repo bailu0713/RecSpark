@@ -58,7 +58,6 @@ object BehaviorRec {
    **/
   val REC_NUMBER = 10
 
-
   def main(args: Array[String]) {
     val defaultParams = Params()
 
