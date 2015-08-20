@@ -19,51 +19,22 @@ import net.sf.json.JSONObject
  * Created by BaiLu on 2015/7/24.
  */
 object ContentRec {
-//  val inputstream=new FileInputStream("/var/ire/config.property")
-//  val properties=new Properties()
-//  properties.load(inputstream)
-//  /**
-//   * mysql配置信息
-//   **/
-//  val MYSQL_HOST = properties.getProperty("MYSQL_HOST")
-//  val MYSQL_PORT = properties.getProperty("MYSQL_PORT")
-//  val MYSQL_DB = properties.getProperty("MYSQL_DB")
-//  val MYSQL_DB_USER = properties.getProperty("MYSQL_DB_USER")
-//  val MYSQL_DB_PASSWD = properties.getProperty("MYSQL_DB_PASSWD")
-//  val MYSQL_CONNECT =properties.getProperty("MYSQL_CONNECT")
-//  val MYSQL_DRIVER = properties.getProperty("MYSQL_DRIVER")
-//  val MYSQL_QUERY = properties.getProperty("MYSQL_QUERY")
-//  /**
-//   * redis配置信息
-//   **/
-//  val REDIS_IP = properties.getProperty("REDIS_IP")
-//  val REDIS_PORT = properties.getProperty("REDIS_PORT").toInt
-//  /**
-//   * 推荐数量设置
-//   **/
-//  val REC_NUMBER = properties.getProperty("REC_NUMBER").toInt
-//
-//  val NOW_YEAR = nowYear()
-//  inputstream.close()
 
-
-  val MYSQL_HOST = "172.16.168.57"
+  val MYSQL_HOST = ""
   val MYSQL_PORT = "3306"
-  val MYSQL_DB = "ire"
-  val MYSQL_DB_USER = "ire"
-  val MYSQL_DB_PASSWD = "ZAQ!XSW@CDE#"
+  val MYSQL_DB = ""
+  val MYSQL_DB_USER = ""
+  val MYSQL_DB_PASSWD = ""
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
-  val REDIS_IP = "172.16.168.235"
+  val REDIS_IP = ""
   val REDIS_PORT = 6379
   val NOW_YEAR = nowYear()
   val REC_NUMBER = 10
 
   def main(args: Array[String]) {
 
-    //本地运行master必须指定为local
     /**
-     * 不用再在spark-submit中指定master local[*]造成申请过多资源报错，
      * 报错类型为ERROR LiveListenerBus: Listener EventLoggingListener threw an exception
      **/
     val conf = new SparkConf().setAppName("MysqlRDD")

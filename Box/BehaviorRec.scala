@@ -40,18 +40,18 @@ object BehaviorRec {
   /**
    * mysql配置信息
    **/
-  val MYSQL_HOST = "172.16.168.57"
+  val MYSQL_HOST = ""
   val MYSQL_PORT = "3306"
-  val MYSQL_DB = "ire"
-  val MYSQL_DB_USER = "ire"
-  val MYSQL_DB_PASSWD = "ZAQ!XSW@CDE#"
+  val MYSQL_DB = ""
+  val MYSQL_DB_USER = ""
+  val MYSQL_DB_PASSWD = ""
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
-  val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1;"
+  val MYSQL_QUERY = "select catalog.id,catalog.sort_index from relation inner join catalog on relation.contentId=catalog.id where catalog.type=1;"
   /**
    * redis配置信息
    **/
-  val REDIS_IP = "172.16.168.235"
+  val REDIS_IP = ""
   val REDIS_PORT = 6379
   /**
    * 推荐数量设置
@@ -102,7 +102,7 @@ object BehaviorRec {
      **/
     //    def mapSingleCid(singleCid:String)=series_tv_data.map(tup=>if(tup._2.indexOf(singleCid)>=0) tup._1.take(1) else singleCid.take(1))
     val timespan = timeSpans(params.timeSpan)
-    val HDFS_DIR = s"hdfs://172.16.141.215:8020/data/ire/source/rec/xor/vod/{$timespan}.csv"
+    val HDFS_DIR = s"hdfs://ip:8020/data/ire/source/rec/xor/vod/{$timespan}.csv"
     val map = mapSingleCid(MYSQL_QUERY)
     val rawRdd = sc.textFile(HDFS_DIR)
     val tripleRdd = rawRdd.map { line => val field = line.split(","); (field(11), field(0))}
