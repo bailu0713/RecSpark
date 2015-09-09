@@ -1,13 +1,13 @@
-package com.ctvit.box.behavior
+package com.ctvit.box
 
-import java.io.FileInputStream
 import java.sql.{Connection, DriverManager}
 import java.text.SimpleDateFormat
 import java.util
-import java.util.{Properties, Calendar}
+import java.util.{Calendar, Date}
+
 import net.sf.json.JSONObject
 import org.apache.spark.mllib.recommendation.{ALS, Rating}
-import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.{SparkConf, SparkContext}
 import redis.clients.jedis.Jedis
 import scopt.OptionParser
 
@@ -17,50 +17,41 @@ import scopt.OptionParser
 object BehaviorRec {
 
   private case class Params(
-//                     input: Seq[String] = Seq.empty,
-                     numIterations: Int = 10,
-                     lambda: Double = 1.0,
-                     rank: Int = 15,
-                     numBlocks: Int = 5,
-                     recNumber: Int = 10,
-                     timeSpan: Int = 90
-                     ) //extends AbstractParams[Params]
+                             numIterations: Int = 10,
+                             lambda: Double = 1.0,
+                             rank: Int = 15,
+                             numBlocks: Int = 5,
+                             recNumber: Int = 10,
+                             timeSpan: Int = 90,
+                             taskId: String = null
+                             )
 
-  /**
-   * 读取数据文件的时间间隔
-   **/
-  val TIME_SPAN = 90
-  /**
-   * ALS算法参数设置
-   **/
-  val ALS_ITERATION = 10
-  val ALS_RANK = 15
-  val ALS_LAMBDA = 0.1
-  val ALS_BLOCK = 5
+  //extends AbstractParams[Params]
+
   /**
    * mysql配置信息
    **/
   val MYSQL_HOST = ""
-  val MYSQL_PORT = "3306"
+  val MYSQL_PORT = ""
   val MYSQL_DB = ""
   val MYSQL_DB_USER = ""
   val MYSQL_DB_PASSWD = ""
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
-  val MYSQL_QUERY = "select catalog.id,catalog.sort_index from relation inner join catalog on relation.contentId=catalog.id where catalog.type=1;"
+  val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1;"
+
   /**
    * redis配置信息
    **/
   val REDIS_IP = ""
   val REDIS_PORT = 6379
-  /**
-   * 推荐数量设置
-   **/
-  val REC_NUMBER = 10
+
 
   def main(args: Array[String]) {
     val defaultParams = Params()
-
+    val mysqlFlag = new MysqlFlag
+    val startTime = System.nanoTime()
+    val df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     val parser = new OptionParser[Params]("BehaviorRecParams") {
       head("BehaviorRecProduct: an example Recommendation app for plain text data. ")
       opt[Int]("numIterations")
@@ -81,17 +72,32 @@ object BehaviorRec {
       opt[Int]("timeSpan")
         .text(s"number of lambda, default: ${defaultParams.timeSpan}")
         .action((x, c) => c.copy(timeSpan = x))
+      opt[String]("taskId")
+        .text("set mysql flag")
+        .unbounded()
+        .required()
+        .action((x, c) => c.copy(taskId = x))
     }
-
-    parser.parse(args, defaultParams).map { params =>
-      run(params)
-    }.getOrElse {
-      parser.showUsageAsError
-      sys.exit(1)
+    try {
+      parser.parse(args, defaultParams).map { params =>
+        run(params)
+        val period = ((System.nanoTime() - startTime) / 1e9).toString
+        val endTime = df.format(new Date(System.currentTimeMillis()))
+        mysqlFlag.runSuccess(params.taskId, endTime, period)
+      }.getOrElse {
+        parser.showUsageAsError
+        sys.exit(1)
+      }
+    } catch {
+      case _: Exception =>
+        val errTime = df.format(new Date(System.currentTimeMillis()))
+        parser.parse(args, defaultParams).map { params =>
+          mysqlFlag.runFail(params.taskId, errTime)
+      }
     }
   }
-
-  private def run(params: Params) {
+  private def run(params: Params)
+  {
     val conf = new SparkConf().setAppName("BehaviorRecommendaton")
     val sc = new SparkContext(conf)
 
@@ -107,6 +113,7 @@ object BehaviorRec {
     val tripleRdd = rawRdd.map { line => val field = line.split(","); (field(11), field(0))}
       .filter(tup => tup._1.matches("\\d+"))
       .filter(tup => tup._2.matches("\\d+"))
+
       /**
        * 对于单集电视剧将其映射为电视剧的catalogid
        **/
@@ -167,7 +174,7 @@ object BehaviorRec {
     val rs = init.createStatement().executeQuery(sql)
     while (rs.next()) {
       val arr = rs.getString(2).split(";")
-      if (arr.length > 0) {
+      if (arr.length > 1) {
         for (i <- 0 until arr.length) {
           map.put(arr(i), rs.getString(1))
         }

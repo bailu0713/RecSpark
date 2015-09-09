@@ -1,18 +1,16 @@
-package com.ctvit.box.content
+package com.ctvit.box
 
-import java.io.FileInputStream
-import java.sql.{ResultSet, DriverManager}
+import java.sql.{DriverManager, ResultSet}
 import java.text.SimpleDateFormat
 import java.util
-import java.util.{Properties, Date}
-
-import org.apache.hadoop.fs.{Path, FileSystem}
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.SparkContext._
-import org.apache.spark.rdd.JdbcRDD
-import redis.clients.jedis.Jedis
+import java.util.Date
 
 import net.sf.json.JSONObject
+import org.apache.spark.rdd.JdbcRDD
+import org.apache.spark.{SparkConf, SparkContext}
+import redis.clients.jedis.Jedis
+import scopt.OptionParser
+
 
 /**
  * Created by BaiLu on 2015/7/24.
@@ -20,7 +18,7 @@ import net.sf.json.JSONObject
 object ContentRec {
 
   val MYSQL_HOST = ""
-  val MYSQL_PORT = "3306"
+  val MYSQL_PORT = ""
   val MYSQL_DB = ""
   val MYSQL_DB_USER = ""
   val MYSQL_DB_PASSWD = ""
@@ -29,11 +27,54 @@ object ContentRec {
   val REDIS_IP = ""
   val REDIS_PORT = 6379
   val NOW_YEAR = nowYear()
-  val REC_NUMBER = 10
+
+
+
+  private case class Params(
+                             recNumber: Int = 15,
+                             taskId: String = null
+                             )
 
   def main(args: Array[String]) {
 
+    val startTime = System.nanoTime()
+    val df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    val defaultParams = Params()
+    val mysqlFlag = new MysqlFlag
+    val parser = new OptionParser[Params]("ContentRecParams") {
+      head("set ContentRecParams")
+      opt[Int]("recNumber")
+        .text(s"the number of reclist default:${defaultParams.recNumber}")
+        .action((x, c) => c.copy(recNumber = x))
+      opt[String]("taskId")
+        .text("the mysql flag key")
+        .required()
+        .action((x, c) => c.copy(taskId = x))
+    }
+    try {
+      parser.parse(args, defaultParams)
+        .map { params =>
+        run(params)
+        val endTime = df.format(new Date(System.currentTimeMillis()))
+        val period = ((System.nanoTime() - startTime) / 1e9).toString
+        mysqlFlag.runSuccess(params.taskId, endTime, period)
+      }.getOrElse {
+        parser.showUsageAsError
+        sys.exit(-1)
+      }
+    } catch {
+      case _: Exception =>
+        val errTime = df.format(new Date(System.currentTimeMillis()))
+        parser.parse(args, defaultParams).map { params =>
+          mysqlFlag.runFail(params.taskId, errTime)
+        }
+    }
+  }
+
+
+  def run(params: Params) {
     /**
+     * 不用再在spark-submit中指定master local[*]造成申请过多资源报错，
      * 报错类型为ERROR LiveListenerBus: Listener EventLoggingListener threw an exception
      **/
     val conf = new SparkConf().setAppName("MysqlRDD")
@@ -100,7 +141,7 @@ object ContentRec {
       .filter(tup => tup._2._3.toInt > NOW_YEAR - 50000)
       .groupByKey()
       //((title,contentid,level1Id,seriestype),String=title+"#"+contentid+"#"+year+"#"+country)
-      .map(tup => ((tup._1._1, tup._1._2, tup._1._5, tup._1._6), sortByYearTopK(tup._2, REC_NUMBER)))
+      .map(tup => ((tup._1._1, tup._1._2, tup._1._5, tup._1._6), sortByYearTopK(tup._2, params.recNumber)))
 
     /** !!!!!!!!!!!
       * 插入redis
@@ -134,7 +175,7 @@ object ContentRec {
       /**
        * 返回((title,contentid,level1Id,seriestype),reclist)
        **/
-      .map(tup => ((tup._1._1, tup._1._2, tup._1._5, tup._1._6), sortByYearTopK(tup._2, REC_NUMBER)))
+      .map(tup => ((tup._1._1, tup._1._2, tup._1._5, tup._1._6), sortByYearTopK(tup._2, params.recNumber)))
 
     same_level1Id_genre_series_withnoyearnocountry
       .foreach(tup => insertRedis(tup._1._2, tup._1._3, tup._1._4, tup._2))
@@ -179,7 +220,7 @@ object ContentRec {
       .map(tup => (tup._1._2, (tup._1._1, tup._1._5, tup._1._6, tup._2)))
       .join(series_tv_data)
       //(contentid(目标要推荐的电视剧),title,level1Id,seriestype,iterable(推荐的其他的电视剧),sortindex)
-      .map(tup => (tup._1, tup._2._1._1, tup._2._1._2, tup._2._1._3, sortByYearTopK(tup._2._1._4, REC_NUMBER), tup._2._2))
+      .map(tup => (tup._1, tup._2._1._1, tup._2._1._2, tup._2._1._3, sortByYearTopK(tup._2._1._4, params.recNumber), tup._2._2))
 
     /**
      * 将电视剧插入到redis中
@@ -216,7 +257,7 @@ object ContentRec {
     }
       .filter(tup => tup._2._3.toInt > NOW_YEAR - 50000)
       .groupByKey()
-      .map(tup => ((tup._1._2, tup._1._5, tup._1._6), sortByYearTopK(tup._2, REC_NUMBER)))
+      .map(tup => ((tup._1._2, tup._1._5, tup._1._6), sortByYearTopK(tup._2, params.recNumber)))
 
     /**
      * 插入到redis
@@ -229,7 +270,7 @@ object ContentRec {
      **/
     //    val hadoopconf=new Configuration()
     //    val fs=FileSystem.get(hadoopconf)
-    //    val strPath="hdfs://192.168.168.41:8020/user/bl/rdd"
+    //    val strPath="hdfs://:8020/user/bl/rdd"
     //    if (fs.exists(new Path(strPath)))
     //      fs.delete(new Path(strPath),true)
     //    same_levele1Id_series_genre.saveAsTextFile(strPath)
