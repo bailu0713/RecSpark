@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat
 import java.util
 import java.util.Date
 
+import com.ctvit.MysqlFlag
 import net.sf.json.JSONObject
 import org.apache.spark.rdd.JdbcRDD
 import org.apache.spark.{SparkContext, SparkConf}
@@ -19,22 +20,22 @@ object NewContent {
   /**
    * mysql配置信息
    **/
-  val MYSQL_HOST = ""
-  val MYSQL_PORT = ""
-  val MYSQL_DB = ""
-  val MYSQL_DB_USER = ""
-  val MYSQL_DB_PASSWD = ""
+  val MYSQL_HOST = "172.16.168.57"
+  val MYSQL_PORT = "3306"
+  val MYSQL_DB = "ire"
+  val MYSQL_DB_USER = "ire"
+  val MYSQL_DB_PASSWD = "ZAQ!XSW@CDE#"
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
 
   /**
    * redis配置信息
    **/
-  val REDIS_IP = ""
+  val REDIS_IP = "172.16.168.235"
   val REDIS_PORT = 6379
 
   private case class Params(
-                             recNumber: Int = 25,
+                             recNumber: Int = 30,
                              taskId: String = null
                              )
 
@@ -59,7 +60,7 @@ object NewContent {
         .map { params =>
         run(params)
         val endTime = df.format(new Date(System.currentTimeMillis()))
-        val period = ((System.nanoTime() - startTime) / 1e9).toString
+        val period = ((System.nanoTime() - startTime) / 1e6).toString
         mysqlFlag.runSuccess(params.taskId, endTime, period)
       }.getOrElse {
         parser.showUsageAsError
@@ -77,11 +78,12 @@ object NewContent {
   def run(params: Params) {
     val conf = new SparkConf().setAppName("NewContent")
     val sc = new SparkContext(conf)
+    //不针对栏目，对于所有的栏目都用一个统计值来计算
     val allRdd = new JdbcRDD(sc, initMySQL, s"select contentId, contentName,seriesType from ire_content_relation where contentId >=? and contentId <= ? ORDER BY resource_time DESC limit ${params.recNumber};", 1, 2000000000, 1, extractValues)
       .distinct()
-      .keyBy(tup => tup._2)
+      .map(tup=>(("toplevel",tup._3), (tup._1, tup._2)))
       .groupByKey()
-      .foreach(tup => insertRedis(tup._2))
+      .foreach(tup => insertRedis(tup._2, tup._1._2,""))
 
 
     val levelIdArr = catalogLeveId().size()
@@ -89,9 +91,9 @@ object NewContent {
       val levelId = catalogLeveId().get(i)
       val catalogRdd = new JdbcRDD(sc, initMySQL, s"select contentId, contentName,seriesType from ire_content_relation where contentId >=? and contentId <= ? and (level1Id = '$levelId' or level2Id = '$levelId' or level3Id = '$levelId' or level4Id = '$levelId' or level5Id = '$levelId' or level6Id = '$levelId') ORDER BY resource_time DESC limit ${params.recNumber};", 1, 2000000000, 1, extractValues)
         .distinct()
-        .keyBy(tup => tup._2)
+        .map(tup => ((levelId,tup._3), (tup._1, tup._2)))
         .groupByKey()
-        .foreach(tup => insertCatalogRedis(tup._2, levelId))
+        .foreach(tup => insertRedis(tup._2, tup._1._2,tup._1._1))
     }
   }
 
@@ -125,55 +127,37 @@ object NewContent {
   }
 
 
-  def insertRedis(iterable: Iterable[(String, String, String)]): Unit = {
-    //插入一条删除之前的一条
+  def insertRedis(iterable: Iterable[(String, String)], seriestype:String,levelId: String): Unit = {
     val list = iterable.toList
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
+    val pipeline=jedis.pipelined()
     val map = new util.HashMap[String, String]()
-    val key = "Newcontentlist_5_0_" + list(0)._3
-    val keynum = jedis.llen(key).toInt
-    val recAssetId = ""
-    val recAssetPic = ""
-    val recProviderId = ""
-    val rank = ""
-    map.put("assetId", recAssetId)
-    map.put("assetname", list(0)._2)
-    map.put("assetpic", recAssetPic)
-    map.put("movieID", list(0)._1)
-    map.put("providerId", recProviderId)
-    map.put("rank", rank)
-    val value = JSONObject.fromObject(map).toString
-    jedis.rpush(key, value)
-        jedis.lpop(key)
-    //    for (j <- 0 until keynum) {
-    //      jedis.lpop(key)
-    //    }
-    jedis.disconnect()
-  }
 
-  def insertCatalogRedis(iterable: Iterable[(String, String, String)], levelId: String): Unit = {
-    //插入一条删除之前的一条
-    val list = iterable.toList
-    val jedis = initRedis(REDIS_IP, REDIS_PORT)
-    val map = new util.HashMap[String, String]()
-    val key = "Newcontentlist_5_" + levelId + "_" + list(0)._3
+    val key = if (levelId.length > 1) "Newcontentlist_5_" + levelId + "_" + seriestype
+    else "Newcontentlist_5_0_" + seriestype
+
     val keynum = jedis.llen(key).toInt
-    val recAssetId = ""
-    val recAssetPic = ""
-    val recProviderId = ""
-    val rank = ""
-    map.put("assetId", recAssetId)
-    map.put("assetname", list(0)._2)
-    map.put("assetpic", recAssetPic)
-    map.put("movieID", list(0)._1)
-    map.put("providerId", recProviderId)
-    map.put("rank", rank)
-    val value = JSONObject.fromObject(map).toString
-    jedis.rpush(key, value)
-        jedis.lpop(key)
-    //    for (j <- 0 until keynum) {
-    //      jedis.lpop(key)
-    //    }
+    for (i <- 0 until list.length) {
+      val recAssetId = ""
+      val recAssetPic = ""
+      val recProviderId = ""
+      val rank = ""
+      map.put("assetId", recAssetId)
+      map.put("assetname", list(i)._2)
+      map.put("assetpic", recAssetPic)
+      map.put("movieID", list(i)._1)
+      map.put("providerId", recProviderId)
+      map.put("rank", rank)
+      val value = JSONObject.fromObject(map).toString
+      pipeline.rpush(key,value)
+//      jedis.rpush(key, value)
+    }
+
+        for (j <- 0 until keynum) {
+          pipeline.lpop(key)
+//          jedis.lpop(key)
+        }
+    pipeline.sync()
     jedis.disconnect()
   }
 

@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat
 import java.util
 import java.util.{Date, Calendar}
 
+import com.ctvit.MysqlFlag
 import net.sf.json.JSONObject
 import org.apache.spark.{SparkContext, SparkConf}
 import redis.clients.jedis.Jedis
@@ -17,18 +18,18 @@ object ContentTopN {
 
   private case class Params(
                              recNumber: Int = 10,
-                             timeSpan: Int = 10,
+                             timeSpan: Int = 30,
                              taskId: String = null
                              )
 
   /**
    * mysql配置信息
    **/
-  val MYSQL_HOST = ""
-  val MYSQL_PORT = ""
-  val MYSQL_DB = ""
-  val MYSQL_DB_USER = ""
-  val MYSQL_DB_PASSWD = ""
+  val MYSQL_HOST = "172.16.168.57"
+  val MYSQL_PORT = "3306"
+  val MYSQL_DB = "ire"
+  val MYSQL_DB_USER = "ire"
+  val MYSQL_DB_PASSWD = "ZAQ!XSW@CDE#"
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
   val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1;"
@@ -36,7 +37,7 @@ object ContentTopN {
   /**
    * redis配置信息
    **/
-  val REDIS_IP = ""
+  val REDIS_IP = "172.16.168.235"
   val REDIS_PORT = 6379
 
 
@@ -63,7 +64,7 @@ object ContentTopN {
     try {
       parser.parse(args, defaultParams).map { params =>
         run(params)
-        val period = ((System.nanoTime() - startTime) / 1e9).toString
+        val period = ((System.nanoTime() - startTime) / 1e6).toString
         val endTime = df.format(new Date(System.currentTimeMillis()))
         mysqlFlag.runSuccess(params.taskId, endTime, period)
       }.getOrElse {
@@ -88,7 +89,7 @@ object ContentTopN {
      *
      **/
     val timespan = timeSpans(params.timeSpan)
-    val HDFS_DIR = s"hdfs://:8020/data/xor/vod/{$timespan}.csv"
+    val HDFS_DIR = s"hdfs://172.16.141.215:8020/data/ire/source/rec/xor/vod/{$timespan}.csv"
     //    val map = mapSingleCid(MYSQL_QUERY)
     val mapcidcount = mapSingleCidCount(MYSQL_QUERY)
     val maplevelidname = maplevelIdName(MYSQL_QUERY_LEVELIDNAME)
@@ -123,8 +124,10 @@ object ContentTopN {
       .map(tup => (tup._1._1, tup._1._3, tup._2 * 1.0 / tup._1._2))
     /**
      * 返回值为(contentId,contnenName,seriestype,viewcount,各个levelId,各个levelName)
+     *
      **/
-    val finalrdd = rdd.map { tup => (tup._1, maplevelidname.get(tup._1), tup._2, tup._3)}
+    val finalrdd = rdd
+      .map { tup => (tup._1, maplevelidname.get(tup._1), tup._2, tup._3)}
       .filter(tup => tup._2 != null)
       .map { tup =>
       val value = tup._2.split("#")
@@ -138,7 +141,7 @@ object ContentTopN {
       val level4Id = value(7)
       val level4Name = value(8)
 
-      //        //（contentid，contentname，seriestype,viewcount,level1id,level1name,level2id,level2name,level3id,level3name,level4id,level4name）
+      //(contentid，contentname，seriestype,viewcount,level1id,level1name,level2id,level2name,level3id,level3name,level4id,level4name)
       (tup._1, contentName, tup._3, tup._4, level1Id, level1Name, level2Id, level2Name, level3Id, level3Name, level4Id, level4Name)
     }
 
@@ -350,6 +353,7 @@ object ContentTopN {
 
   def insertRedis(levelId: String, levelName: String, recItemList: String, seriestype: String, flag: Int): Unit = {
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
+    val pipeline=jedis.pipelined()
     val map = new util.HashMap[String, String]()
     val arr = recItemList.split("#")
     /**
@@ -380,12 +384,15 @@ object ContentTopN {
       map.put("providerId", recProviderId)
       map.put("rank", rank)
       val value = JSONObject.fromObject(map).toString
-      jedis.rpush(key, value)
+      pipeline.rpush(key,value)
+//      jedis.rpush(key, value)
       i += 1
     }
     for (j <- 0 until keynum) {
-      jedis.lpop(key)
+      pipeline.lpop(key)
+//      jedis.lpop(key)
     }
+    pipeline.sync()
     jedis.disconnect()
   }
 

@@ -5,6 +5,7 @@ import java.text.SimpleDateFormat
 import java.util
 import java.util.Date
 
+import com.ctvit.MysqlFlag
 import net.sf.json.JSONObject
 import org.apache.spark.rdd.JdbcRDD
 import org.apache.spark.{SparkConf, SparkContext}
@@ -17,14 +18,14 @@ import scopt.OptionParser
  */
 object ContentRec {
 
-  val MYSQL_HOST = ""
-  val MYSQL_PORT = ""
-  val MYSQL_DB = ""
-  val MYSQL_DB_USER = ""
-  val MYSQL_DB_PASSWD = ""
+  val MYSQL_HOST = "172.16.168.57"
+  val MYSQL_PORT = "3306"
+  val MYSQL_DB = "ire"
+  val MYSQL_DB_USER = "ire"
+  val MYSQL_DB_PASSWD = "ZAQ!XSW@CDE#"
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
-  val REDIS_IP = ""
+  val REDIS_IP = "172.16.168.235"
   val REDIS_PORT = 6379
   val NOW_YEAR = nowYear()
 
@@ -56,7 +57,7 @@ object ContentRec {
         .map { params =>
         run(params)
         val endTime = df.format(new Date(System.currentTimeMillis()))
-        val period = ((System.nanoTime() - startTime) / 1e9).toString
+        val period = ((System.nanoTime() - startTime) / 1e6).toString
         mysqlFlag.runSuccess(params.taskId, endTime, period)
       }.getOrElse {
         parser.showUsageAsError
@@ -270,7 +271,7 @@ object ContentRec {
      **/
     //    val hadoopconf=new Configuration()
     //    val fs=FileSystem.get(hadoopconf)
-    //    val strPath="hdfs://:8020/user/bl/rdd"
+    //    val strPath="hdfs://192.168.168.41:8020/user/bl/rdd"
     //    if (fs.exists(new Path(strPath)))
     //      fs.delete(new Path(strPath),true)
     //    same_levele1Id_series_genre.saveAsTextFile(strPath)
@@ -360,8 +361,8 @@ object ContentRec {
      * 保证list中一直有数据，不会数据丢失
      **/
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
+    val pipeline=jedis.pipelined()
     val key = targetContentId + "_5_" + targetlevel1Id + "_" + targetSeriesType
-    //    val list=new util.ArrayList[util.Map[String,String]]()
     var i = 0
     var j = 0
     val map = new util.HashMap[String, String]()
@@ -380,12 +381,15 @@ object ContentRec {
       map.put("providerId", recProviderId)
       map.put("rank", rank)
       val value = JSONObject.fromObject(map).toString
-      jedis.rpush(key, value)
+      pipeline.rpush(key,value)
+//      jedis.rpush(key, value)
       i += 1
     }
     for (j <- 0 until keynum) {
-      jedis.lpop(key)
+      pipeline.lpop(key)
+//      jedis.lpop(key)
     }
+    pipeline.sync()
     jedis.disconnect()
   }
 
@@ -395,6 +399,7 @@ object ContentRec {
      * 保证list中一直有数据，不会数据丢失
      **/
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
+    val pipeline=jedis.pipelined()
     val map = new util.HashMap[String, String]()
 
     /**
@@ -416,11 +421,14 @@ object ContentRec {
       map.put("providerId", recProviderId)
       map.put("rank", rank)
       val value = JSONObject.fromObject(map).toString
-      jedis.rpush(keys, value)
+      pipeline.rpush(keys,value)
+//      jedis.rpush(keys, value)
     }
     for (j <- 0 until keynums) {
-      jedis.lpop(keys)
+      pipeline.lpop(keys)
+//      jedis.lpop(keys)
     }
+    pipeline.sync()
     val targetTvArr = sortIndex.split(";")
     for (k <- 0 until targetTvArr.length) {
       /**
@@ -444,12 +452,17 @@ object ContentRec {
         map.put("providerId", recProviderId)
         map.put("rank", rank)
         val value = JSONObject.fromObject(map).toString
-        jedis.rpush(key, value)
+        pipeline.rpush(key,value)
+//        jedis.rpush(key, value)
       }
+
       for (j <- 0 until keynum) {
-        jedis.lpop(key)
+        pipeline.lpop(key)
+//        jedis.lpop(key)
       }
+      pipeline.sync()
     }
+
     jedis.disconnect()
   }
 }

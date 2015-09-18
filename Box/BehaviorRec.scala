@@ -5,11 +5,14 @@ import java.text.SimpleDateFormat
 import java.util
 import java.util.{Calendar, Date}
 
+import com.ctvit.MysqlFlag
 import net.sf.json.JSONObject
 import org.apache.spark.mllib.recommendation.{ALS, Rating}
 import org.apache.spark.{SparkConf, SparkContext}
 import redis.clients.jedis.Jedis
 import scopt.OptionParser
+
+import scala.collection.mutable
 
 /**
  * Created by BaiLu on 2015/8/18.
@@ -31,19 +34,20 @@ object BehaviorRec {
   /**
    * mysql配置信息
    **/
-  val MYSQL_HOST = ""
-  val MYSQL_PORT = ""
-  val MYSQL_DB = ""
-  val MYSQL_DB_USER = ""
-  val MYSQL_DB_PASSWD = ""
+  val MYSQL_HOST = "172.16.168.57"
+  val MYSQL_PORT = "3306"
+  val MYSQL_DB = "ire"
+  val MYSQL_DB_USER = "ire"
+  val MYSQL_DB_PASSWD = "ZAQ!XSW@CDE#"
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
   val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1;"
+  val MYSQL_CID_NAME = "select contentName,contentId from ire_content_relation;"
 
   /**
    * redis配置信息
    **/
-  val REDIS_IP = ""
+  val REDIS_IP = "172.16.168.235"
   val REDIS_PORT = 6379
 
 
@@ -81,7 +85,7 @@ object BehaviorRec {
     try {
       parser.parse(args, defaultParams).map { params =>
         run(params)
-        val period = ((System.nanoTime() - startTime) / 1e9).toString
+        val period = ((System.nanoTime() - startTime) / 1e6).toString
         val endTime = df.format(new Date(System.currentTimeMillis()))
         mysqlFlag.runSuccess(params.taskId, endTime, period)
       }.getOrElse {
@@ -93,11 +97,11 @@ object BehaviorRec {
         val errTime = df.format(new Date(System.currentTimeMillis()))
         parser.parse(args, defaultParams).map { params =>
           mysqlFlag.runFail(params.taskId, errTime)
-      }
+        }
     }
   }
-  private def run(params: Params)
-  {
+
+  private def run(params: Params) {
     val conf = new SparkConf().setAppName("BehaviorRecommendaton")
     val sc = new SparkContext(conf)
 
@@ -107,7 +111,7 @@ object BehaviorRec {
      **/
     //    def mapSingleCid(singleCid:String)=series_tv_data.map(tup=>if(tup._2.indexOf(singleCid)>=0) tup._1.take(1) else singleCid.take(1))
     val timespan = timeSpans(params.timeSpan)
-    val HDFS_DIR = s"hdfs://ip:8020/data/ire/source/rec/xor/vod/{$timespan}.csv"
+    val HDFS_DIR = s"hdfs://172.16.141.215:8020/data/ire/source/rec/xor/vod/{$timespan}.csv"
     val map = mapSingleCid(MYSQL_QUERY)
     val rawRdd = sc.textFile(HDFS_DIR)
     val tripleRdd = rawRdd.map { line => val field = line.split(","); (field(11), field(0))}
@@ -141,6 +145,7 @@ object BehaviorRec {
        **/
       .map(tup => (tup._1.toString, sortByScore(tup._2, params.recNumber)))
     recRdd.foreach(tup => insertRedis(tup._1, tup._2))
+
     sc.stop()
 
   }
@@ -174,7 +179,7 @@ object BehaviorRec {
     val rs = init.createStatement().executeQuery(sql)
     while (rs.next()) {
       val arr = rs.getString(2).split(";")
-      if (arr.length > 1) {
+      if (arr.length > 0) {
         for (i <- 0 until arr.length) {
           map.put(arr(i), rs.getString(1))
         }
@@ -190,10 +195,27 @@ object BehaviorRec {
     DriverManager.getConnection(MYSQL_CONNECT, MYSQL_DB_USER, MYSQL_DB_PASSWD)
   }
 
+  /**
+   * 获取内容id的名称
+   **/
+  def getCidName(sql:String): mutable.HashMap[String, String] = {
+    val map = new mutable.HashMap[String, String]()
+    val init = initMySQL()
+    val rs = init.createStatement().executeQuery(sql)
+    while (rs.next()) {
+      map(rs.getString(2)) = rs.getString(1)
+//            map.put(rs.getString(2), rs.getString(1))
+    }
+    map
+  }
+
+  val cidnameMap = getCidName(MYSQL_CID_NAME)
   def sortByScore(iterable: Iterable[(Int, Double)], topK: Int): String = {
     /**
      * recStr返回推荐的item组合拼接成string
      **/
+
+
     val list = iterable.toList
     val sortList = list.sortBy(_._2).reverse
     val listLen = sortList.length
@@ -201,14 +223,15 @@ object BehaviorRec {
     var recStr = ""
     if (listLen >= topK) {
       while (i < topK) {
-        recStr += sortList(i)._1.toString + ","
+
+        recStr += sortList(i)._1.toString + "," + cidnameMap.getOrElse(sortList(i)._1.toString, " ") + "#"
         i += 1
       }
       recStr
     }
     else {
       while (i < listLen) {
-        recStr += sortList(i)._1.toString + ","
+        recStr += sortList(i)._1.toString + "," + cidnameMap.getOrElse(sortList(i)._1.toString, " ") + "#"
         i += 1
       }
       recStr
@@ -218,16 +241,17 @@ object BehaviorRec {
 
   def insertRedis(targetUser: String, recItemList: String): Unit = {
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
+    val pipeline = jedis.pipelined()
     val map = new util.HashMap[String, String]()
     val key = targetUser + "_5_0"
-    val arr = recItemList.split(",")
+    val arr = recItemList.split("#")
     var i = 0
     val keynum = jedis.llen(key).toInt
     while (i < arr.length) {
       val recAssetId = ""
-      val recAssetName = ""
+      val recAssetName = arr(i).split(",")(1)
       val recAssetPic = ""
-      val recContentId = arr(i)
+      val recContentId = arr(i).split(",")(0)
       val recProviderId = ""
       val rank = ""
       map.put("assetId", recAssetId)
@@ -237,12 +261,16 @@ object BehaviorRec {
       map.put("providerId", recProviderId)
       map.put("rank", rank)
       val value = JSONObject.fromObject(map).toString
-      jedis.rpush(key, value)
+      pipeline.rpush(key, value)
+      //      jedis.rpush(key, value)
       i += 1
     }
+
     for (j <- 0 until keynum) {
-      jedis.lpop(key)
+      pipeline.lpop(key)
+      //      jedis.lpop(key)
     }
+    pipeline.sync()
     jedis.disconnect()
   }
 }
