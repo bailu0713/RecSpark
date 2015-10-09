@@ -1,13 +1,10 @@
 package com.ctvit.box
 
-/**
- * Created by BaiLu on 2015/9/21.
- */
-
 import java.sql.{DriverManager, ResultSet}
 import java.text.SimpleDateFormat
-import java.util.{Random, Collections, Date}
 import java.util
+import java.util.Date
+
 import com.ctvit.MysqlFlag
 import net.sf.json.JSONObject
 import org.apache.spark.rdd.JdbcRDD
@@ -19,7 +16,7 @@ import scopt.OptionParser
 /**
  * Created by BaiLu on 2015/7/24.
  */
-object ContentRec {
+object ContentRecOld {
 
   val MYSQL_HOST = "172.16.168.57"
   val MYSQL_PORT = "3306"
@@ -29,9 +26,9 @@ object ContentRec {
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
   val REDIS_IP = "172.16.168.235"
-  val REDIS_IP2 = "172.16.168.236"
   val REDIS_PORT = 6379
   val NOW_YEAR = nowYear()
+
 
 
   private case class Params(
@@ -81,7 +78,7 @@ object ContentRec {
      * 不用再在spark-submit中指定master local[*]造成申请过多资源报错，
      * 报错类型为ERROR LiveListenerBus: Listener EventLoggingListener threw an exception
      **/
-    val conf = new SparkConf().setAppName("ContentRecNew")
+    val conf = new SparkConf().setAppName("ContentRec")
     val sc = new SparkContext(conf)
 
     /** element_info  table non-series
@@ -104,12 +101,12 @@ object ContentRec {
      * 电影
      * 数字学校的id=10001059
      * group by 按照level1Id和genre聚合
-     * ((level1Id,genre,seriesType,level2Id),(title,contentid,year,country))
+     * ((level1Id,genre,seriesType),(title,contentid,year,country))
      * rawRdd=16651
      * typeRdd=6932
      **/
     val typeRdd = rawRdd.filter(tup => tup._6 != "10001059").filter(tup => tup._7 != "1")
-      .map { field => ((field._6, field._3, field._7, field._8), (field._1, field._2, parseYear(field._4), field._5))}
+      .map { field => ((field._6, field._3, field._7), (field._1, field._2, parseYear(field._4), field._5))}
       .distinct()
 
     /** ####################
@@ -133,19 +130,19 @@ object ContentRec {
 
       /**
        * 需要将level1Id,seriestype加入到结果集当中
-       * ((title,contentid,country,level1Id,seriestype,level2Id),(title,contentid,year,country))
+       * ((title,contentid,year,country,level1Id,seriestype),(title,contentid,year,country))
        **/
-      ((tup._2._1._1, tup._2._1._2, tup._2._1._4, tup._1._1, tup._1._3, tup._1._4), (tup._2._2._1, tup._2._2._2, tup._2._2._3, tup._2._2._4))
+      ((tup._2._1._1, tup._2._1._2, tup._2._1._3, tup._2._1._4, tup._1._1, tup._1._3), (tup._2._2._1, tup._2._2._2, tup._2._2._3, tup._2._2._4))
     }
 
       /** 筛选相同国家的电影 */
       .filter(tup => tup._1._4 == tup._2._4)
 
       /** 筛选近五年的电影 */
-      .filter(tup => tup._2._3.toInt > NOW_YEAR - 20000)
+      .filter(tup => tup._2._3.toInt > NOW_YEAR - 50000)
       .groupByKey()
       //((title,contentid,level1Id,seriestype),String=title+"#"+contentid+"#"+year+"#"+country)
-      .map(tup => ((tup._1._1, tup._1._2, tup._1._4, tup._1._5), sortByYearTopK(tup._2, params.recNumber)))
+      .map(tup => ((tup._1._1, tup._1._2, tup._1._5, tup._1._6), sortByYearTopK(tup._2, params.recNumber)))
 
     /** !!!!!!!!!!!
       * 插入redis
@@ -160,7 +157,7 @@ object ContentRec {
      * same_levele1Id_genre_series_withyearcountry 的count=4667
      * ##########################################
      **/
-    val typeRdd_noyear_nocountry = typeRdd.filter(tup => if (tup._2._3 == "" || tup._2._4 == "" || tup._2._3 == null || tup._2._4 == null) true else false)
+    val typeRdd_noyear_nocountry = typeRdd.filter(tup => if (tup._2._3 == "" || tup._2._4 == "") true else false)
     val same_level1Id_genre_series_withnoyearnocountry = typeRdd_noyear_nocountry
       .join(typeRdd_noyear_nocountry)
       .filter(tup => tup._2._1._2 != tup._2._2._2)
@@ -169,17 +166,17 @@ object ContentRec {
 
       /**
        * 需要将level1Id,seriestype 加入到结果集当中
-       * ((title,contentid,country,level1Id,seriestype,level2Id),(title,contentid,year,country))
+       * ((title,contentid,year,country,level1Id,seriestype),(title,contentid,year,country))
        **/
-      ((tup._2._1._1, tup._2._1._2, tup._2._1._4, tup._1._1, tup._1._3, tup._1._4), (tup._2._2._1, tup._2._2._2, tup._2._2._3, tup._2._2._4))
+      ((tup._2._1._1, tup._2._1._2, tup._2._1._3, tup._2._1._4, tup._1._1, tup._1._3), (tup._2._2._1, tup._2._2._2, tup._2._2._3, tup._2._2._4))
     }
-      .filter(tup => tup._2._3.toInt > NOW_YEAR - 20000)
+      .filter(tup => tup._2._3.toInt > NOW_YEAR - 50000)
       .groupByKey()
 
       /**
        * 返回((title,contentid,level1Id,seriestype),reclist)
        **/
-      .map(tup => ((tup._1._1, tup._1._2, tup._1._4, tup._1._5), sortByYearTopK(tup._2, params.recNumber)))
+      .map(tup => ((tup._1._1, tup._1._2, tup._1._5, tup._1._6), sortByYearTopK(tup._2, params.recNumber)))
 
     same_level1Id_genre_series_withnoyearnocountry
       .foreach(tup => insertRedis(tup._1._2, tup._1._3, tup._1._4, tup._2))
@@ -187,13 +184,13 @@ object ContentRec {
      * #########################################
      * 电视剧的推荐
      * 推荐的映射值
-     * ((level1Id,genre,seriesType,level2Id),(title,contentid,year,country))
+     * ((level1Id,genre,seriesType),(title,contentid,year,country))
      * tvRdd.count=2019
      * ##########################################
      **/
     val series_tv_rdd = rawRdd.filter(tup => tup._6 != "10001059")
       .filter(tup => tup._7 == "1")
-      .map { field => ((field._6, field._3, field._7, field._8), (field._1, field._2, parseYear(field._4), field._5))}
+      .map { field => ((field._6, field._3, field._7), (field._1, field._2, parseYear(field._4), field._5))}
       .distinct()
     val tvRdd = series_tv_rdd
       .join(series_tv_rdd)
@@ -209,19 +206,19 @@ object ContentRec {
 
       /**
        * 需要将level1Id,seriestype加入到结果集当中
-       * ((title,contentid,country,level1Id,seriestype),(title,contentid,year,country))
+       * ((title,contentid,year,country,level1Id,seriestype),(title,contentid,year,country))
        **/
-      ((tup._2._1._1, tup._2._1._2, tup._2._1._4, tup._1._1, tup._1._3), (tup._2._2._1, tup._2._2._2, tup._2._2._3, tup._2._2._4))
+      ((tup._2._1._1, tup._2._1._2, tup._2._1._3, tup._2._1._4, tup._1._1, tup._1._3), (tup._2._2._1, tup._2._2._2, tup._2._2._3, tup._2._2._4))
     }
 
       /** 筛选相同国家的电视剧 */
       //      .filter(tup => tup._1._4 == tup._2._4)
 
       /** 筛选近五年的电视剧 */
-      .filter(tup => tup._2._3.toInt > NOW_YEAR - 20000)
+      .filter(tup => tup._2._3.toInt > NOW_YEAR - 50000)
       .groupByKey()
       //(contentid,(title,level1Id,seriestype,iterable=[(title,contentid,year,country),...]))
-      .map(tup => (tup._1._2, (tup._1._1, tup._1._4, tup._1._5, tup._2)))
+      .map(tup => (tup._1._2, (tup._1._1, tup._1._5, tup._1._6, tup._2)))
       .join(series_tv_data)
       //(contentid(目标要推荐的电视剧),title,level1Id,seriestype,iterable(推荐的其他的电视剧),sortindex)
       .map(tup => (tup._1, tup._2._1._1, tup._2._1._2, tup._2._1._3, sortByYearTopK(tup._2._1._4, params.recNumber), tup._2._2))
@@ -243,7 +240,7 @@ object ContentRec {
      **/
     val educationRdd = rawRdd.filter(tup => tup._6 == "10001059")
       .map { field => ((field._6, field._8, field._9, field._10, field._7), (field._1, field._2, parseYear(field._4), field._5))}
-      //level2Id为0的有几个值，没有太大用处
+      //leve2Id为0的有几个值，没有太大用处
       .filter(tup => tup._1._2 != "0")
       .distinct()
     val same_levelId_education = educationRdd
@@ -255,13 +252,13 @@ object ContentRec {
 
       /**
        * 需要将level1Id,seriestype加入到结果集当中
-       * ((title,contentid,country,level1Id,seriestype),(title,contentid,year,country))
+       * ((title,contentid,year,country,level1Id,seriestype),(title,contentid,year,country))
        **/
-      ((tup._2._1._1, tup._2._1._2, tup._2._1._4, tup._1._1, tup._1._5), (tup._2._2._1, tup._2._2._2, tup._2._2._3, tup._2._2._4))
+      ((tup._2._1._1, tup._2._1._2, tup._2._1._3, tup._2._1._4, tup._1._1, tup._1._5), (tup._2._2._1, tup._2._2._2, tup._2._2._3, tup._2._2._4))
     }
-      .filter(tup => tup._2._3.toInt > NOW_YEAR - 20000)
+      .filter(tup => tup._2._3.toInt > NOW_YEAR - 50000)
       .groupByKey()
-      .map(tup => ((tup._1._2, tup._1._4, tup._1._5), sortByYearTopK(tup._2, params.recNumber)))
+      .map(tup => ((tup._1._2, tup._1._5, tup._1._6), sortByYearTopK(tup._2, params.recNumber)))
 
     /**
      * 插入到redis
@@ -303,7 +300,7 @@ object ContentRec {
   }
 
   def nowYear(): Int = {
-    val df = new SimpleDateFormat("yyyyMMdd")
+    val df = new SimpleDateFormat("yyyy")
     val nowYear = df.format(new Date())
     nowYear.toInt
   }
@@ -317,31 +314,21 @@ object ContentRec {
    * 对于groupby后返回的iterable（title,contentid,year,country），按照年份排序
    **/
   def sortByYearTopK(iterable: Iterable[(String, String, String, String)], topK: Int): String = {
-    val random = new Random()
     val list = iterable.toList
-    //@date 2015-10-09
-    //    val sortlist =Collections.shuffle(list)
     val sortlist = list.sortBy(_._3.toInt).reverse
     var rec = ""
     val reclength = list.length
     var i = 0
     if (reclength >= topK) {
       while (i < topK) {
-        //@date 2015-10-09
-        val j = random.nextInt(reclength)
         if (i == 0) {
-          //@date 2015-10-09
-          rec += sortlist(j)._1 + "," + sortlist(j)._2 + "," + sortlist(j)._3 + "," + sortlist(j)._4 + "#"
-          //          rec += sortlist(i)._1 + "," + sortlist(i)._2 + "," + sortlist(i)._3 + "," + sortlist(i)._4 + "#"
+          rec += sortlist(i)._1 + "," + sortlist(i)._2 + "," + sortlist(i)._3 + "," + sortlist(i)._4 + "#"
           i += 1
         }
         else {
           if (rec.indexOf(sortlist(i)._1.toString) < 0)
-          //@date 2015-10-09
-            rec += sortlist(j)._1 + "," + sortlist(j)._2 + "," + sortlist(j)._3 + "," + sortlist(j)._4 + "#"
-          //            rec += sortlist(i)._1 + "," + sortlist(i)._2 + "," + sortlist(i)._3 + "," + sortlist(i)._4 + "#"
+            rec += sortlist(i)._1 + "," + sortlist(i)._2 + "," + sortlist(i)._3 + "," + sortlist(i)._4 + "#"
           i += 1
-
         }
       }
       rec
@@ -353,10 +340,11 @@ object ContentRec {
           i += 1
         }
         else {
-          if (rec.indexOf(sortlist(i)._1.toString) < 0 && rec.indexOf(sortlist(i)._2.toString) < 0)
+          if (rec.indexOf(sortlist(i)._1.toString) < 0)
             rec += sortlist(i)._1 + "," + sortlist(i)._2 + "," + sortlist(i)._3 + "," + sortlist(i)._4 + "#"
           i += 1
         }
+
       }
       rec
     }
@@ -373,20 +361,12 @@ object ContentRec {
      * 保证list中一直有数据，不会数据丢失
      **/
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
-    val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
-
-    val pipeline = jedis.pipelined()
-    val pipeline2 = jedis2.pipelined()
-    //@date 2015-10-08
-    val key = targetContentId + "_5_" + targetlevel1Id + "_0"
-    //    val key = targetContentId + "_5_" + targetlevel1Id + "_" + targetSeriesType
+    val pipeline=jedis.pipelined()
+    val key = targetContentId + "_5_" + targetlevel1Id + "_" + targetSeriesType
     var i = 0
     var j = 0
     val map = new util.HashMap[String, String]()
-
     val keynum = jedis.llen(key).toInt
-    val keynum2 = jedis2.llen(key).toInt
-
     while (i < reclist.split("#").length) {
       val recAssetId = ""
       val recAssetName = reclist.split("#")(i).split(",")(0)
@@ -401,22 +381,16 @@ object ContentRec {
       map.put("providerId", recProviderId)
       map.put("rank", rank)
       val value = JSONObject.fromObject(map).toString
-      pipeline.rpush(key, value)
-      pipeline2.rpush(key, value)
-      //      jedis.rpush(key, value)
+      pipeline.rpush(key,value)
+//      jedis.rpush(key, value)
       i += 1
     }
-
     for (j <- 0 until keynum) {
       pipeline.lpop(key)
+//      jedis.lpop(key)
     }
     pipeline.sync()
-    for (j <- 0 until keynum2) {
-      pipeline2.lpop(key)
-    }
-    pipeline2.sync()
     jedis.disconnect()
-    jedis2.disconnect()
   }
 
   def insertTVRedis(targetContentId: String, targetlevel1Id: String, targetSeriesType: String, sortIndex: String, reclist: String): Unit = {
@@ -425,23 +399,14 @@ object ContentRec {
      * 保证list中一直有数据，不会数据丢失
      **/
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
-    val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
-
-    val pipeline = jedis.pipelined()
-    val pipeline2 = jedis2.pipelined()
-
+    val pipeline=jedis.pipelined()
     val map = new util.HashMap[String, String]()
 
     /**
      * 插入电视剧的catalogid
      **/
-    //@date 2015-10-08
-    val keys = targetContentId + "_5_" + targetlevel1Id + "_0"
-    //    val keys = targetContentId + "_5_" + targetlevel1Id + "_" + targetSeriesType
-
+    val keys = targetContentId + "_5_" + targetlevel1Id + "_" + targetSeriesType
     val keynums = jedis.llen(keys).toInt
-    val keynums2 = jedis2.llen(keys).toInt
-
     for (i <- 0 until reclist.split("#").length) {
       val recAssetId = ""
       val recAssetName = reclist.split("#")(i).split(",")(0)
@@ -456,32 +421,23 @@ object ContentRec {
       map.put("providerId", recProviderId)
       map.put("rank", rank)
       val value = JSONObject.fromObject(map).toString
-      pipeline.rpush(keys, value)
-      pipeline2.rpush(keys, value)
+      pipeline.rpush(keys,value)
+//      jedis.rpush(keys, value)
     }
-
     for (j <- 0 until keynums) {
       pipeline.lpop(keys)
+//      jedis.lpop(keys)
     }
     pipeline.sync()
-    for (j <- 0 until keynums2) {
-      pipeline2.lpop(keys)
-    }
-    pipeline2.sync()
-
     val targetTvArr = sortIndex.split(";")
     for (k <- 0 until targetTvArr.length) {
       /**
        * 对于多集电视剧只推每一集的ContentId，没有推整集的一个catalogid，所以没有用到参数中的targetContentId
        **/
+
       val targetContent = targetTvArr(k)
-      //@date 2015-10-08
-      val key = targetContent + "_5_" + targetlevel1Id + "_0"
-      //      val key = targetContent + "_5_" + targetlevel1Id + "_" + targetSeriesType
-
+      val key = targetContent + "_5_" + targetlevel1Id + "_" + targetSeriesType
       val keynum = jedis.llen(key).toInt
-      val keynum2 = jedis2.llen(key).toInt
-
       for (i <- 0 until reclist.split("#").length) {
         val recAssetId = ""
         val recAssetName = reclist.split("#")(i).split(",")(0)
@@ -496,21 +452,17 @@ object ContentRec {
         map.put("providerId", recProviderId)
         map.put("rank", rank)
         val value = JSONObject.fromObject(map).toString
-
-        pipeline.rpush(key, value)
-        pipeline2.rpush(key, value)
+        pipeline.rpush(key,value)
+//        jedis.rpush(key, value)
       }
 
       for (j <- 0 until keynum) {
         pipeline.lpop(key)
+//        jedis.lpop(key)
       }
       pipeline.sync()
-      for (j <- 0 until keynum2) {
-        pipeline2.lpop(key)
-      }
-      pipeline2.sync()
     }
+
     jedis.disconnect()
-    jedis2.disconnect()
   }
 }

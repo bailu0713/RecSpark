@@ -16,7 +16,7 @@ import scopt.OptionParser
  * Created by BaiLu on 2015/8/24.
  */
 object BgcTV {
-  val MYSQL_HOST = "172.16.169.13"
+  val MYSQL_HOST = "172.16.168.236"
   val MYSQL_PORT = "3306"
   val MYSQL_DB = "ire"
   val MYSQL_DB_USER = "ire"
@@ -24,6 +24,7 @@ object BgcTV {
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
   val REDIS_IP = "172.16.168.235"
+  val REDIS_IP2 = "172.16.168.236"
   val REDIS_PORT = 6379
 
   val secondsPerMinute = 60
@@ -34,14 +35,14 @@ object BgcTV {
   val totalRecNum = 16
 
 
-  val SQL_CARTOON = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='cartoon' order by rand() limit"
-  val SQL_TV = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='tv' order by rand() limit"
-  val SQL_MOVIE = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='movie' order by rand() limit"
-  val SQL_VAIETY = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='variety' order by rand() limit"
-  val SQL_SPORT = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype<>'cartoon' and mtype<>'tv' and (plots like '%运动%' or tags like '%运动%') and tags not like '%爱情%' and tags not like '%纪实%' and tags not like '%恐怖%' and tags not like '%惊悚%' order by rand() limit"
-  val SQL_SCIENCE = "select name_cn,mediaid,ind,p_pic from mediaBestv where tags like '%科教%' and mtype='variety' order by rand() limit"
-  val SQL_FINANCE = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype<>'cartoon' and (plots like '%证券%' or adword like '%股市%' or plots like '%股市%' or plots like '%房地产%') order by rand() limit"
-  val SQL_ENTAINMENT = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='variety' and tags not like '%纪实%' or (tags like '%纪实%' and tags like '%真人秀%' ) order by rand() limit"
+  val SQL_CARTOON = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='cartoon' order by rand() limit "
+  val SQL_TV = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='tv' order by rand() limit "
+  val SQL_MOVIE = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='movie' order by rand() limit "
+  val SQL_VAIETY = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='variety' order by rand() limit "
+  val SQL_SPORT = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype<>'cartoon' and mtype<>'tv' and (plots like '%运动%' or tags like '%运动%') and tags not like '%爱情%' and tags not like '%纪实%' and tags not like '%恐怖%' and tags not like '%惊悚%' order by rand() limit "
+  val SQL_SCIENCE = "select name_cn,mediaid,ind,p_pic from mediaBestv where tags like '%科教%' and mtype='variety' order by rand() limit "
+  val SQL_FINANCE = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype<>'cartoon' and (plots like '%证券%' or adword like '%股市%' or plots like '%股市%' or plots like '%房地产%') order by rand() limit "
+  val SQL_ENTAINMENT = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='variety' and tags not like '%纪实%' or (tags like '%纪实%' and tags like '%真人秀%' ) order by rand() limit "
 
   private case class Params(taskId: String = null,
                             recNumber: Int = 18)
@@ -54,8 +55,7 @@ object BgcTV {
     val defaultParams = Params()
     val mysqlFlag = new MysqlFlag
     val parser = new OptionParser[Params]("ContentRecParams") {
-      head("set ContentRecParams")
-      head("set ContentRecParams")
+      head("set BRVTVParams")
       opt[Int]("recNumber")
         .text(s"the number of reclist default:${defaultParams.recNumber}")
         .action((x, c) => c.copy(recNumber = x))
@@ -69,7 +69,7 @@ object BgcTV {
         .map { params =>
         run(params)
         val endTime = datefomat.format(new Date(System.currentTimeMillis()))
-        val period = ((System.nanoTime() - startTime) / 1e9).toString
+        val period = ((System.nanoTime() - startTime) / 1e6).toString.split(".")(0)
         mysqlFlag.runSuccess(params.taskId, endTime, period)
       }.getOrElse {
         parser.showUsageAsError
@@ -139,7 +139,7 @@ object BgcTV {
          **/
 
         if (column == "") {
-          val rddnocolumn = new JdbcRDD(sc, initMySQL, s"select a.channelId from (select channelId,channelName,programTitle,serviceId from livemedia where startTime<='$dbTimeLiveLoop' and endTime>'$dbTimeLiveLoop'  and channelId <> 'cctv1' and channelId<>'cctv5'and channelId <> 'cctv6' and channelId<>'cctv3' and channelId <> 'cctv8' and channelId<>'5927c7a6dd31f38686fafa073e2e13bc' and channelId<>'590e187a8799b1890175d25ec85ea352' and channelId<>'28502a1b6bf5fbe7c6da9241db596237' and channelId<>'9291c40ec1cec1281638720c74c7245f' and channelId<>'1ce026a774dba0d13dc0cef453248fb7' and channelId<>'5dfcaefe6e7203df9fbe61ffd64ed1c4' and channelId<>'23ab87816c24f90e5865116512e12c47' and channelId<>'20831bb807a45638cfaf81df1122024d' and channelId<>'55fc65ef82e92d0e1ccb2b3f200a7529' and channelId<>'c8bf387b1824053bdb0423ef806a2227' and channelId<>'c39a7a374d888bce3912df71bcb0d580' and channelId<>'6a3f44b1abfdfb49ddd051f9e683c86d' and channelId<>'dragontv' and channelId<>'322fa7b66243b8d0edef9d761a42f263' and channelId<>'antv' and wikiTitle<>'广告')a left join (select channel,tvRating,minute_time from live_audience_rating where minute_time= '$dbTimeAudienceLoop' and date_time='$dbTimeAudienceDay')b on a.serviceId=b.channel order by b.tvRating desc;", 1, 2000000000, 1, extractValues)
+          val rddnocolumn = new JdbcRDD(sc, initMySQL, s"select a.channelId,a.serviceId from (select channelId,channelName,programTitle,serviceId from livemedia where startTime<='$dbTimeLiveLoop' and endTime>'$dbTimeLiveLoop'  and channelId <> 'cctv1' and channelId<>'cctv5'and channelId <> 'cctv6' and channelId<>'cctv3' and channelId <> 'cctv8' and channelId<>'5927c7a6dd31f38686fafa073e2e13bc' and channelId<>'590e187a8799b1890175d25ec85ea352' and channelId<>'28502a1b6bf5fbe7c6da9241db596237' and channelId<>'9291c40ec1cec1281638720c74c7245f' and channelId<>'1ce026a774dba0d13dc0cef453248fb7' and channelId<>'5dfcaefe6e7203df9fbe61ffd64ed1c4' and channelId<>'23ab87816c24f90e5865116512e12c47' and channelId<>'20831bb807a45638cfaf81df1122024d' and channelId<>'55fc65ef82e92d0e1ccb2b3f200a7529' and channelId<>'c8bf387b1824053bdb0423ef806a2227' and channelId<>'c39a7a374d888bce3912df71bcb0d580' and channelId<>'6a3f44b1abfdfb49ddd051f9e683c86d' and channelId<>'dragontv' and channelId<>'322fa7b66243b8d0edef9d761a42f263' and channelId<>'antv' and wikiTitle<>'广告')a left join (select channel,tvRating,minute_time from live_audience_rating where minute_time= '$dbTimeAudienceLoop' and date_time='$dbTimeAudienceDay')b on a.serviceId=b.channel where a.serviceId>? and a.serviceId<? order by b.tvRating desc;", 1, 2000000000, 1, extractValues)
           val liveChannelIdCount = rddnocolumn.count().toInt
           rddnocolumn.take(liveChannelIdCount)
 
@@ -195,7 +195,7 @@ object BgcTV {
 
         }
         else {
-          val rddcolumn = new JdbcRDD(sc, initMySQL, s"select a.channelId from (select channelId,channelName,programTitle,serviceId from livemedia where startTime<='$dbTimeLiveLoop' and endTime>'$dbTimeLiveLoop'  and programType='$column' and channelId <> 'cctv1' and channelId<>'cctv5'and channelId <> 'cctv6' and channelId<>'cctv3' and channelId <> 'cctv8' and channelId<>'5927c7a6dd31f38686fafa073e2e13bc' and channelId<>'590e187a8799b1890175d25ec85ea352' and channelId<>'28502a1b6bf5fbe7c6da9241db596237' and channelId<>'9291c40ec1cec1281638720c74c7245f' and channelId<>'1ce026a774dba0d13dc0cef453248fb7' and channelId<>'5dfcaefe6e7203df9fbe61ffd64ed1c4' and channelId<>'23ab87816c24f90e5865116512e12c47' and channelId<>'20831bb807a45638cfaf81df1122024d' and channelId<>'55fc65ef82e92d0e1ccb2b3f200a7529' and channelId<>'c8bf387b1824053bdb0423ef806a2227' and channelId<>'c39a7a374d888bce3912df71bcb0d580' and channelId<>'6a3f44b1abfdfb49ddd051f9e683c86d' and channelId<>'dragontv' and channelId<>'322fa7b66243b8d0edef9d761a42f263' and channelId<>'antv' and wikiTitle<>'广告')a left join (select channel,tvRating,minute_time from live_audience_rating where minute_time= '$dbTimeAudienceLoop' and date_time='$dbTimeAudienceDay')b on a.serviceId=b.channel order by b.tvRating desc;", 1, 2000000000, 1, extractValues)
+          val rddcolumn = new JdbcRDD(sc, initMySQL, s"select a.channelId,a.serviceId from (select channelId,channelName,programTitle,serviceId from livemedia where startTime<='$dbTimeLiveLoop' and endTime>'$dbTimeLiveLoop'  and programType='$column' and channelId <> 'cctv1' and channelId<>'cctv5'and channelId <> 'cctv6' and channelId<>'cctv3' and channelId <> 'cctv8' and channelId<>'5927c7a6dd31f38686fafa073e2e13bc' and channelId<>'590e187a8799b1890175d25ec85ea352' and channelId<>'28502a1b6bf5fbe7c6da9241db596237' and channelId<>'9291c40ec1cec1281638720c74c7245f' and channelId<>'1ce026a774dba0d13dc0cef453248fb7' and channelId<>'5dfcaefe6e7203df9fbe61ffd64ed1c4' and channelId<>'23ab87816c24f90e5865116512e12c47' and channelId<>'20831bb807a45638cfaf81df1122024d' and channelId<>'55fc65ef82e92d0e1ccb2b3f200a7529' and channelId<>'c8bf387b1824053bdb0423ef806a2227' and channelId<>'c39a7a374d888bce3912df71bcb0d580' and channelId<>'6a3f44b1abfdfb49ddd051f9e683c86d' and channelId<>'dragontv' and channelId<>'322fa7b66243b8d0edef9d761a42f263' and channelId<>'antv' and wikiTitle<>'广告')a left join (select channel,tvRating,minute_time from live_audience_rating where minute_time= '$dbTimeAudienceLoop' and date_time='$dbTimeAudienceDay')b on a.serviceId=b.channel where a.serviceId>? and a.serviceId<? order by b.tvRating desc;", 1, 2000000000, 1, extractValues)
 
           val liveChannelIdCount = rddcolumn.count().toInt
           rddcolumn.take(liveChannelIdCount)
@@ -326,9 +326,14 @@ object BgcTV {
      * 保证list中一直有数据，不会数据丢失
      **/
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
+    val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
     val keynum = jedis.llen(key).toInt
+    val keynum2 = jedis2.llen(key).toInt
     jedis.rpush(key, value)
+    jedis2.rpush(key, value)
     jedis.lpop(key)
+    jedis2.lpop(key)
     jedis.disconnect()
+    jedis2.disconnect()
   }
 }

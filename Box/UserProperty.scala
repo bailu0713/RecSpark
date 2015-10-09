@@ -41,6 +41,7 @@ object UserProperty {
    * redis配置信息
    **/
   val REDIS_IP = "172.16.168.235"
+  val REDIS_IP2 = "172.16.168.236"
   val REDIS_PORT = 6379
 
   def main(args: Array[String]) {
@@ -66,7 +67,7 @@ object UserProperty {
     try {
       parser.parse(args, defaultParams).map { params =>
         run(params)
-        val period = ((System.nanoTime() - startTime) / 1e6).toString
+        val period = ((System.nanoTime() - startTime) / 1e6).toString.split("\\.")(0)
         val endTime = df.format(new Date(System.currentTimeMillis()))
         mysqlFlag.runSuccess(params.taskId, endTime, period)
       }.getOrElse {
@@ -105,7 +106,6 @@ object UserProperty {
       //(caid,contentid)与(caid,districtindex) 做join连接成districtindex,contentid
       .map(tup => (tup._2._2, tup._2._1))
 
-
       /**
        * 对于单集电视剧将其映射为电视剧的catalogid作为MovieId
        * 生成（contentid,contentidcount(总集数),seriestype(0,1),districtindex(地区编号)，1(1次观看)）
@@ -133,7 +133,6 @@ object UserProperty {
     }
       .groupByKey()
       .foreach(tup => insertRedis(tup._1._1, tup._1._2, tup._1._3, sortByViewcountTopK(tup._2, params.recNumber)))
-
   }
 
   /**
@@ -231,8 +230,12 @@ object UserProperty {
   }
 
   def insertRedis(districtIndex: String, seriesType: Int, level1Id: String, recItemList: String): Unit = {
+
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
+    val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
     val pipeline = jedis.pipelined()
+    val pipeline2 = jedis2.pipelined()
+
     val map = new util.HashMap[String, String]()
     val arr = recItemList.split("#")
     val key = districtIndex + "_5_" + seriesType + "_" + level1Id
@@ -240,8 +243,11 @@ object UserProperty {
      * 0表示不加入类型seriestype
      * 1表示加入seriestype分电视剧与电影
      **/
-    var i = 0
+
     val keynum = jedis.llen(key).toInt
+    val keynum2 = jedis2.llen(key).toInt
+
+    var i = 0
     while (i < arr.length) {
       val recAssetId = ""
       val recAssetName = arr(i).split(",")(1)
@@ -256,16 +262,22 @@ object UserProperty {
       map.put("providerId", recProviderId)
       map.put("rank", rank)
       val value = JSONObject.fromObject(map).toString
+
       pipeline.rpush(key, value)
-      //      jedis.rpush(key, value)
+      pipeline2.rpush(key, value)
+
       i += 1
     }
     for (j <- 0 until keynum) {
       pipeline.lpop(key)
-      //      jedis.lpop(key)
     }
     pipeline.sync()
+    for (j <- 0 until keynum2) {
+      pipeline2.lpop(key)
+    }
+    pipeline2.sync()
     jedis.disconnect()
+    jedis2.disconnect()
   }
 
 

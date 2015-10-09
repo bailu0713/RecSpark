@@ -38,6 +38,7 @@ object ContentTopN {
    * redis配置信息
    **/
   val REDIS_IP = "172.16.168.235"
+  val REDIS_IP2 = "172.16.168.236"
   val REDIS_PORT = 6379
 
 
@@ -64,7 +65,7 @@ object ContentTopN {
     try {
       parser.parse(args, defaultParams).map { params =>
         run(params)
-        val period = ((System.nanoTime() - startTime) / 1e6).toString
+        val period = ((System.nanoTime() - startTime) / 1e6).toString.split("\\.")(0)
         val endTime = df.format(new Date(System.currentTimeMillis()))
         mysqlFlag.runSuccess(params.taskId, endTime, period)
       }.getOrElse {
@@ -158,13 +159,13 @@ object ContentTopN {
       .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
 
     //加入seriestype
-        finalrdd
-          .filter(tup => tup._5 != "0")
-          .groupBy(tup => (tup._5, tup._6,tup._3))
-          .map { tup =>
-          (tup._1._1, tup._1._2,sortByViewcountTopK(tup._2, params.recNumber),tup._1._3)
-        }
-          .foreach(tup => insertRedis(tup._1, tup._2, tup._3,tup._4.toString,1))
+    finalrdd
+      .filter(tup => tup._5 != "0")
+      .groupBy(tup => (tup._5, tup._6, tup._3))
+      .map { tup =>
+      (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
+    }
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
 
     /**
      * level2id插入redis
@@ -177,13 +178,14 @@ object ContentTopN {
     }
       .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
     //seriestype=0
-        finalrdd
-          .filter(tup => tup._7 != "0")
-          .groupBy(tup => (tup._7, tup._8,tup._3))
-          .map { tup =>
-          (tup._1._1, tup._1._2,sortByViewcountTopK(tup._2, params.recNumber),tup._1._3)
-        }
-          .foreach(tup => insertRedis(tup._1, tup._2, tup._3,tup._4.toString,1))
+    finalrdd
+      .filter(tup => tup._7 != "0")
+      .groupBy(tup => (tup._7, tup._8, tup._3))
+      .map { tup =>
+      (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
+    }
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
+
     /**
      * level3id插入redis
      * seriestype没有考虑
@@ -195,13 +197,13 @@ object ContentTopN {
     }
       .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
     //seriestype=0
-        finalrdd
-          .filter(tup => tup._9 != "0")
-          .groupBy(tup => (tup._9, tup._10,tup._3))
-          .map { tup =>
-          (tup._1._1, tup._1._2,sortByViewcountTopK(tup._2, params.recNumber),tup._1._3)
-        }
-          .foreach(tup => insertRedis(tup._1, tup._2, tup._3,tup._4.toString,1))
+    finalrdd
+      .filter(tup => tup._9 != "0")
+      .groupBy(tup => (tup._9, tup._10, tup._3))
+      .map { tup =>
+      (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
+    }
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
 
     /**
      * level4id插入redis
@@ -216,13 +218,13 @@ object ContentTopN {
       .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0)) //seriestype=0
 
     //seriestype=1
-        finalrdd
-          .filter(tup => tup._11 != "0")
-          .groupBy(tup => (tup._11, tup._12,tup._3))
-          .map { tup =>
-          (tup._1._1, tup._1._2,sortByViewcountTopK(tup._2, params.recNumber),tup._1._3)
-        }
-          .foreach(tup => insertRedis(tup._1, tup._2, tup._3,tup._4.toString,1))
+    finalrdd
+      .filter(tup => tup._11 != "0")
+      .groupBy(tup => (tup._11, tup._12, tup._3))
+      .map { tup =>
+      (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
+    }
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
   }
 
 
@@ -282,6 +284,7 @@ object ContentTopN {
    * 保证只读取一次mysql，不要每次去读取
    **/
   def mapSingleCid(sql: String): util.HashMap[String, String] = {
+
     val map = new util.HashMap[String, String]()
     val init = initMySQL()
     val rs = init.createStatement().executeQuery(sql)
@@ -303,6 +306,7 @@ object ContentTopN {
    * 保证只读取一次mysql，不要每次去读取
    **/
   def mapSingleCidCount(sql: String): util.HashMap[String, String] = {
+    //    catalog_info.id,catalog_info.sort_index
     val map = new util.HashMap[String, String]()
     val init = initMySQL()
     val rs = init.createStatement().executeQuery(sql)
@@ -353,7 +357,11 @@ object ContentTopN {
 
   def insertRedis(levelId: String, levelName: String, recItemList: String, seriestype: String, flag: Int): Unit = {
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
-    val pipeline=jedis.pipelined()
+    val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
+
+    val pipeline = jedis.pipelined()
+    val pipeline2 = jedis2.pipelined()
+
     val map = new util.HashMap[String, String]()
     val arr = recItemList.split("#")
     /**
@@ -364,8 +372,10 @@ object ContentTopN {
       if (flag == 0) "Topcontentlist_5_" + levelId
       else "Topcontentlist_5_" + levelId + "_" + seriestype
 
-    var i = 0
     val keynum = jedis.llen(key).toInt
+    val keynum2 = jedis2.llen(key).toInt
+
+    var i = 0
     while (i < arr.length) {
       val recAssetId = ""
       val recAssetName = arr(i).split(",")(1)
@@ -384,16 +394,20 @@ object ContentTopN {
       map.put("providerId", recProviderId)
       map.put("rank", rank)
       val value = JSONObject.fromObject(map).toString
-      pipeline.rpush(key,value)
-//      jedis.rpush(key, value)
+      pipeline.rpush(key, value)
+      pipeline2.rpush(key, value)
       i += 1
     }
     for (j <- 0 until keynum) {
       pipeline.lpop(key)
-//      jedis.lpop(key)
     }
     pipeline.sync()
+    for (j <- 0 until keynum2) {
+      pipeline2.lpop(key)
+    }
+    pipeline2.sync()
     jedis.disconnect()
+    jedis2.disconnect()
   }
 
 
