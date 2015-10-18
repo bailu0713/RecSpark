@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat
 import java.util
 import java.util.{Calendar, Date}
 
-import com.ctvit.MysqlFlag
+import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.mllib.recommendation.{ALS, Rating}
 import org.apache.spark.{SparkConf, SparkContext}
@@ -24,21 +24,22 @@ object BehaviorRec {
                              lambda: Double = 1.0,
                              rank: Int = 15,
                              numBlocks: Int = 5,
-                             recNumber: Int = 10,
+                             recNumber: Int = 15,
                              timeSpan: Int = 90,
                              taskId: String = null
                              )
 
   //extends AbstractParams[Params]
-
   /**
    * mysql配置信息
    **/
-  val MYSQL_HOST = "172.16.168.57"
-  val MYSQL_PORT = "3306"
-  val MYSQL_DB = ""
-  val MYSQL_DB_USER = ""
-  val MYSQL_DB_PASSWD = ""
+  val configs = new AllConfigs
+  val MYSQL_HOST = configs.BOX_MYSQL_HOST
+  val MYSQL_PORT = configs.BOX_MYSQL_PORT
+  val MYSQL_DB = configs.BOX_MYSQL_DB
+  val MYSQL_DB_USER = configs.BOX_MYSQL_DB_USER
+  val MYSQL_DB_PASSWD = configs.BOX_MYSQL_DB_PASSWD
+
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
   val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1;"
@@ -47,9 +48,10 @@ object BehaviorRec {
   /**
    * redis配置信息
    **/
-  val REDIS_IP = ""
-  val REDIS_IP2 = ""
-  val REDIS_PORT = 6379
+
+  val REDIS_IP = configs.BOX_REDIS_IP
+  val REDIS_IP2 = configs.BOX_REDIS_IP2
+  val REDIS_PORT = configs.BOX_REDIS_PORT
 
 
   def main(args: Array[String]) {
@@ -211,6 +213,7 @@ object BehaviorRec {
       map(rs.getString(2)) = rs.getString(1)
       //            map.put(rs.getString(2), rs.getString(1))
     }
+    init.close()
     map
   }
 

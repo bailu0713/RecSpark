@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat
 import java.util
 import java.util.{Date, Calendar}
 
-import com.ctvit.MysqlFlag
+import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.{SparkContext, SparkConf}
 import redis.clients.jedis.Jedis
@@ -17,7 +17,7 @@ import scopt.OptionParser
 object ContentTopN {
 
   private case class Params(
-                             recNumber: Int = 10,
+                             recNumber: Int = 15,
                              timeSpan: Int = 30,
                              taskId: String = null
                              )
@@ -25,11 +25,13 @@ object ContentTopN {
   /**
    * mysql配置信息
    **/
-  val MYSQL_HOST = "172.16.168.57"
-  val MYSQL_PORT = "3306"
-  val MYSQL_DB = "ire"
-  val MYSQL_DB_USER = "ire"
-  val MYSQL_DB_PASSWD = "ZAQ!XSW@CDE#"
+  val configs=new AllConfigs
+  val MYSQL_HOST = configs.BOX_MYSQL_HOST
+  val MYSQL_PORT = configs.BOX_MYSQL_PORT
+  val MYSQL_DB = configs.BOX_MYSQL_DB
+  val MYSQL_DB_USER = configs.BOX_MYSQL_DB_USER
+  val MYSQL_DB_PASSWD = configs.BOX_MYSQL_DB_PASSWD
+
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
   val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1;"
@@ -37,9 +39,10 @@ object ContentTopN {
   /**
    * redis配置信息
    **/
-  val REDIS_IP = "172.16.168.235"
-  val REDIS_IP2 = "172.16.168.236"
-  val REDIS_PORT = 6379
+
+  val REDIS_IP = configs.BOX_REDIS_IP
+  val REDIS_IP2 = configs.BOX_REDIS_IP2
+  val REDIS_PORT = configs.BOX_REDIS_PORT
 
 
   def main(args: Array[String]) {
@@ -49,7 +52,7 @@ object ContentTopN {
     val startTime = System.nanoTime()
     val df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     val parser = new OptionParser[Params]("BehaviorRecParams") {
-      head("BehaviorRecProduct: an example Recommendation app for plain text data. ")
+      head("ChannelTopNProduct: an example Recommendation app for plain text data. ")
       opt[Int]("recNumber")
         .text(s"number of lambda, default: ${defaultParams.recNumber}")
         .action((x, c) => c.copy(recNumber = x))
@@ -82,7 +85,7 @@ object ContentTopN {
   }
 
   private def run(params: Params) {
-    val conf = new SparkConf().setAppName("BehaviorRecommendaton")
+    val conf = new SparkConf().setAppName("ContentTopN")
     val sc = new SparkContext(conf)
 
     /**
@@ -298,6 +301,7 @@ object ContentTopN {
       else
         map.put(rs.getString(2), rs.getString(1))
     }
+    init.close()
     map
   }
 

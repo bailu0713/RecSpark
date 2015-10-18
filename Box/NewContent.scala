@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat
 import java.util
 import java.util.Date
 
-import com.ctvit.MysqlFlag
+import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.rdd.JdbcRDD
 import org.apache.spark.{SparkContext, SparkConf}
@@ -20,23 +20,25 @@ object NewContent {
   /**
    * mysql配置信息
    **/
-  val MYSQL_HOST = "172.16.168.57"
-  val MYSQL_PORT = "3306"
-  val MYSQL_DB = "ire"
-  val MYSQL_DB_USER = "ire"
-  val MYSQL_DB_PASSWD = "ZAQ!XSW@CDE#"
+  val configs=new AllConfigs
+  val MYSQL_HOST = configs.BOX_MYSQL_HOST
+  val MYSQL_PORT = configs.BOX_MYSQL_PORT
+  val MYSQL_DB = configs.BOX_MYSQL_DB
+  val MYSQL_DB_USER = configs.BOX_MYSQL_DB_USER
+  val MYSQL_DB_PASSWD = configs.BOX_MYSQL_DB_PASSWD
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
 
   /**
    * redis配置信息
    **/
-  val REDIS_IP = "172.16.168.235"
-  val REDIS_IP2 = "172.16.168.236"
-  val REDIS_PORT = 6379
+
+  val REDIS_IP = configs.BOX_REDIS_IP
+  val REDIS_IP2 = configs.BOX_REDIS_IP2
+  val REDIS_PORT = configs.BOX_REDIS_PORT
 
   private case class Params(
-                             recNumber: Int = 30,
+                             recNumber: Int = 15,
                              taskId: String = null
                              )
 
@@ -47,7 +49,7 @@ object NewContent {
     val defaultParams = Params()
     val mysqlFlag = new MysqlFlag
     val parser = new OptionParser[Params]("ContentRecParams") {
-      head("set ContentRecParams")
+      head("set NewContentRecParams")
       opt[Int]("recNumber")
         .text(s"the number of reclist default:${defaultParams.recNumber}")
         .action((x, c) => c.copy(recNumber = x))
@@ -110,16 +112,17 @@ object NewContent {
   }
 
   def catalogLeveId(): util.ArrayList[String] = {
-
+    //@date 2015-10-10
+    val init = initMySQL()
     val arr = new util.ArrayList[String]
     for (i <- 1 to 6) {
       val sql = s"select DISTINCT(level${i}Id) from ire_content_relation;"
-      val init = initMySQL()
       val rs = init.createStatement().executeQuery(sql)
       while (rs.next()) {
         arr.add(rs.getString(1))
       }
     }
+    init.close()
     arr
   }
 

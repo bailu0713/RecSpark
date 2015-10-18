@@ -1,10 +1,10 @@
 package com.ctvit.tv
 
-import java.sql.{ResultSet, DriverManager}
+import java.sql.{Connection, ResultSet, DriverManager}
 import java.text.SimpleDateFormat
 import java.util
 import java.util.{Calendar, Date}
-import com.ctvit.MysqlFlag
+import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.rdd.JdbcRDD
@@ -16,16 +16,19 @@ import scopt.OptionParser
  * Created by BaiLu on 2015/8/24.
  */
 object BgcTV {
-  val MYSQL_HOST = "172.16.168.236"
-  val MYSQL_PORT = "3306"
-  val MYSQL_DB = "ire"
-  val MYSQL_DB_USER = "ire"
-  val MYSQL_DB_PASSWD = "ZAQ!XSW@CDE#"
+
+  val configs=new AllConfigs
+  val MYSQL_HOST = configs.OTT_MYSQL_HOST
+  val MYSQL_PORT = configs.OTT_MYSQL_PORT
+  val MYSQL_DB = configs.OTT_MYSQL_DB
+  val MYSQL_DB_USER = configs.OTT_MYSQL_DB_USER
+  val MYSQL_DB_PASSWD = configs.OTT_MYSQL_DB_PASSWD
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
-  val REDIS_IP = "172.16.168.235"
-  val REDIS_IP2 = "172.16.168.236"
-  val REDIS_PORT = 6379
+
+
+  val REDIS_IP = configs.OTT_REDIS_IP
+  val REDIS_PORT = configs.OTT_REDIS_PORT
 
   val secondsPerMinute = 60
   val minutesPerHour = 60
@@ -55,7 +58,7 @@ object BgcTV {
     val defaultParams = Params()
     val mysqlFlag = new MysqlFlag
     val parser = new OptionParser[Params]("ContentRecParams") {
-      head("set BRVTVParams")
+      head("set BGCTVParams")
       opt[Int]("recNumber")
         .text(s"the number of reclist default:${defaultParams.recNumber}")
         .action((x, c) => c.copy(recNumber = x))
@@ -168,7 +171,7 @@ object BgcTV {
             channelMap.put("rec_livelist", channelList)
             val channelobj = JSONObject.fromObject(channelMap).toString
 
-            val mediaobj = rec_vod_list(SQL_VAIETY, params.recNumber-liveChannelIdCount)
+            val mediaobj = rec_vod_list(SQL_VAIETY, params.recNumber - liveChannelIdCount)
 
             val key = dbTimeAudienceLoop + "_all"
             val value = channelobj.concat(mediaobj).replace("}{", ",")
@@ -181,6 +184,7 @@ object BgcTV {
 
           val liveChannelIdCount = rddcolumn.count().toInt
           rddcolumn.take(liveChannelIdCount)
+
           /**
            * 直播频道超过12条
            **/
@@ -194,6 +198,7 @@ object BgcTV {
             val value = channelobj.concat(mediaobj).replace("}{", ",")
             insertRedis(key, value)
           }
+
           /**
            * 直播频道不足推荐的个数
            **/
@@ -201,7 +206,7 @@ object BgcTV {
             rddcolumn.collect().foreach(channelId => channelList.add(channelId))
             channelMap.put("rec_livelist", channelList)
             val channelobj = JSONObject.fromObject(channelMap).toString
-            val mediaobj = rec_vod_list(columnMatch(column), params.recNumber-liveChannelIdCount)
+            val mediaobj = rec_vod_list(columnMatch(column), params.recNumber - liveChannelIdCount)
             val key = dbTimeAudienceLoop + "_" + column
             val value = channelobj.concat(mediaobj).replace("}{", ",")
 
@@ -218,7 +223,7 @@ object BgcTV {
     jedis
   }
 
-  def initMySQL() = {
+  def initMySQL(): Connection = {
     Class.forName(MYSQL_DRIVER)
     DriverManager.getConnection(MYSQL_CONNECT, MYSQL_DB_USER, MYSQL_DB_PASSWD)
   }
@@ -253,6 +258,7 @@ object BgcTV {
     }
     mediaMap.put("rec_vodlist", mediaList)
     val vodString = JSONObject.fromObject(mediaMap).toString
+    con.close()
     vodString
   }
 
@@ -269,23 +275,14 @@ object BgcTV {
      * 保证list中一直有数据，不会数据丢失
      **/
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
-    val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
     val pipeline = jedis.pipelined()
-    val pipeline2 = jedis2.pipelined()
     val keynum = jedis.llen(key).toInt
-    val keynum2 = jedis2.llen(key).toInt
 
     pipeline.rpush(key, value)
-    pipeline2.rpush(key, value)
     for (j <- 0 until keynum) {
       pipeline.lpop(key)
     }
     pipeline.sync()
-    for (j <- 0 until keynum2) {
-      pipeline2.lpop(key)
-    }
-    pipeline2.sync()
     jedis.disconnect()
-    jedis2.disconnect()
   }
 }

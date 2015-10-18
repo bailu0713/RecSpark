@@ -8,7 +8,7 @@ import java.sql.{DriverManager, ResultSet}
 import java.text.SimpleDateFormat
 import java.util.{Random, Collections, Date}
 import java.util
-import com.ctvit.MysqlFlag
+import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.rdd.JdbcRDD
 import org.apache.spark.{SparkConf, SparkContext}
@@ -21,23 +21,29 @@ import scopt.OptionParser
  */
 object ContentRec {
 
-  val MYSQL_HOST = "172.16.168.57"
-  val MYSQL_PORT = "3306"
-  val MYSQL_DB = ""
-  val MYSQL_DB_USER = ""
-  val MYSQL_DB_PASSWD = ""
-  val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
-  val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
-  val REDIS_IP = ""
-  val REDIS_IP2 = ""
-  val REDIS_PORT = 6379
-  val NOW_YEAR = nowYear()
-
 
   private case class Params(
                              recNumber: Int = 15,
                              taskId: String = null
                              )
+
+  val configs=new AllConfigs
+  val MYSQL_HOST = configs.BOX_MYSQL_HOST
+  val MYSQL_PORT = configs.BOX_MYSQL_PORT
+  val MYSQL_DB = configs.BOX_MYSQL_DB
+  val MYSQL_DB_USER = configs.BOX_MYSQL_DB_USER
+  val MYSQL_DB_PASSWD = configs.BOX_MYSQL_DB_PASSWD
+
+  val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
+  val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
+
+
+  val REDIS_IP = configs.BOX_REDIS_IP
+  val REDIS_IP2 = configs.BOX_REDIS_IP2
+  val REDIS_PORT = configs.BOX_REDIS_PORT
+
+  val NOW_YEAR = nowYear()
+
 
   def main(args: Array[String]) {
 

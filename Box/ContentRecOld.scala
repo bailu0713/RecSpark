@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat
 import java.util
 import java.util.Date
 
-import com.ctvit.MysqlFlag
+import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.rdd.JdbcRDD
 import org.apache.spark.{SparkConf, SparkContext}
