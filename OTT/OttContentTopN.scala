@@ -158,7 +158,7 @@ object OttContentTopN {
   }
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport)
+    val jedis = new Jedis(redisip, redisport,100000)
     jedis
   }
 

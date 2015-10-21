@@ -90,6 +90,9 @@ object BgcTV {
   def run(params: Params): Unit = {
     val conf = new SparkConf().setAppName("BGCTV")
     val sc = new SparkContext(conf)
+
+
+
     val df = new SimpleDateFormat("yyyyMMdd")
     //@date 2015-10-09
     val dfAudienceDay = new SimpleDateFormat("yyyy-MM-dd")
@@ -161,7 +164,7 @@ object BgcTV {
             val mediaobj = JSONObject.fromObject(mediaMap).toString
             val key = dbTimeAudienceLoop + "_all"
             val value = channelobj.concat(mediaobj).replace("}{", ",")
-            insertRedis(key, value)
+//            insertRedis(key, value)
           }
 
           /**
@@ -176,7 +179,7 @@ object BgcTV {
 
             val key = dbTimeAudienceLoop + "_all"
             val value = channelobj.concat(mediaobj).replace("}{", ",")
-            insertRedis(key, value)
+//            insertRedis(key, value)
           }
 
         }
@@ -198,7 +201,7 @@ object BgcTV {
             val mediaobj = JSONObject.fromObject(mediaMap).toString
             val key = dbTimeAudienceLoop + "_" + column
             val value = channelobj.concat(mediaobj).replace("}{", ",")
-            insertRedis(key, value)
+//            insertRedis(key, value)
           }
 
           /**
@@ -212,7 +215,7 @@ object BgcTV {
             val key = dbTimeAudienceLoop + "_" + column
             val value = channelobj.concat(mediaobj).replace("}{", ",")
 
-            insertRedis(key, value)
+//            insertRedis(key, value)
           }
         }
       }
@@ -221,7 +224,7 @@ object BgcTV {
   }
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport)
+    val jedis = new Jedis(redisip, redisport,100000)
     jedis
   }
 
