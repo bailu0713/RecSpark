@@ -102,10 +102,6 @@ object OttContentRec {
       .map(tup => (tup._1._1, tup._1._2, recList(tup._2, params.recNumber)))
       .foreach(tup => insertRedis(tup._1, tup._2, tup._3))
 
-
-
-
-
     //数字学校的type=21，dramatype=113
     val school = rawData.filter(tup => tup._4 == "21")
       //21中TypeID，catalogID都一样，只需一个来确认
@@ -181,7 +177,7 @@ object OttContentRec {
       val recAssetPic = ""
       val recContentId = arr(i).split(",")(0)
       val recProviderId = ""
-      val rank = ""
+      val rank = (i+1).toString
       map.put("assetId", recAssetId)
       map.put("assetname", recAssetName)
       map.put("assetpic", recAssetPic)

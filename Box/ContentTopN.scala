@@ -25,7 +25,7 @@ object ContentTopN {
   /**
    * mysql配置信息
    **/
-  val configs=new AllConfigs
+  val configs = new AllConfigs
   val MYSQL_HOST = configs.BOX_MYSQL_HOST
   val MYSQL_PORT = configs.BOX_MYSQL_PORT
   val MYSQL_DB = configs.BOX_MYSQL_DB
@@ -51,7 +51,7 @@ object ContentTopN {
     val mysqlFlag = new MysqlFlag
     val startTime = System.nanoTime()
     val df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-    val parser = new OptionParser[Params]("BehaviorRecParams") {
+    val parser = new OptionParser[Params]("ContentTopNRecParams") {
       head("ChannelTopNProduct: an example Recommendation app for plain text data. ")
       opt[Int]("recNumber")
         .text(s"number of lambda, default: ${defaultParams.recNumber}")
@@ -99,7 +99,7 @@ object ContentTopN {
     val maplevelidname = maplevelIdName(MYSQL_QUERY_LEVELIDNAME)
     val rawRdd = sc.textFile(HDFS_DIR)
     /**
-     * 获取 观看时间,contentid,seriestype(0,1)
+     * 获取 观看时间,contentid
      **/
     val rdd = rawRdd.map { line => val field = line.split(","); (field(5), field(0))}
       .filter(tup => tup._1.matches("\\d+"))
@@ -108,7 +108,7 @@ object ContentTopN {
       /**
        * 观看时长超过30秒的就计算
        **/
-      .filter(tup => tup._1.toInt > 30)
+      .filter(tup => tup._1.toInt > 60)
 
       /**
        * 对于单集电视剧将其映射为电视剧的catalogid作为MovieId
@@ -159,8 +159,8 @@ object ContentTopN {
       .map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber))
     }
-      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
-
+    .foreach(println)
+//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
     //加入seriestype
     finalrdd
       .filter(tup => tup._5 != "0")
@@ -168,7 +168,7 @@ object ContentTopN {
       .map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
     }
-      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
+//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
 
     /**
      * level2id插入redis
@@ -179,7 +179,7 @@ object ContentTopN {
       .groupBy(tup => (tup._7, tup._8)).map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber))
     }
-      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
+//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
     //seriestype=0
     finalrdd
       .filter(tup => tup._7 != "0")
@@ -187,7 +187,7 @@ object ContentTopN {
       .map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
     }
-      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
+//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
 
     /**
      * level3id插入redis
@@ -198,7 +198,7 @@ object ContentTopN {
       .groupBy(tup => (tup._9, tup._10)).map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber))
     }
-      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
+//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
     //seriestype=0
     finalrdd
       .filter(tup => tup._9 != "0")
@@ -206,7 +206,7 @@ object ContentTopN {
       .map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
     }
-      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
+//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
 
     /**
      * level4id插入redis
@@ -218,7 +218,7 @@ object ContentTopN {
       .groupBy(tup => (tup._11, tup._12)).map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber))
     }
-      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0)) //seriestype=0
+//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0)) //seriestype=0
 
     //seriestype=1
     finalrdd
@@ -227,7 +227,8 @@ object ContentTopN {
       .map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
     }
-      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
+//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
+    sc.stop()
   }
 
 
@@ -338,9 +339,11 @@ object ContentTopN {
     val rs = init.createStatement().executeQuery(sql)
     while (rs.next()) {
       //contentid作为key
-      val key = rs.getString(2)
-      val value = rs.getString(1) + "#" + rs.getString(3) + "#" + rs.getString(4) + "#" + rs.getString(5) + "#" + rs.getString(6) + "#" + rs.getString(7) + "#" + rs.getString(8) + "#" + rs.getString(9) + "#" + rs.getString(10)
-      map.put(key, value)
+      if (rs.getString(3) != "10046284") {
+        val key = rs.getString(2)
+        val value = rs.getString(1) + "#" + rs.getString(3) + "#" + rs.getString(4) + "#" + rs.getString(5) + "#" + rs.getString(6) + "#" + rs.getString(7) + "#" + rs.getString(8) + "#" + rs.getString(9) + "#" + rs.getString(10)
+        map.put(key, value)
+      }
     }
     map
   }
@@ -388,7 +391,8 @@ object ContentTopN {
       val recParentName = levelName
       val recParentId = levelId
       val recProviderId = ""
-      val rank = arr(i).split(",")(3)
+      val rank = (i + 1).toString
+      //      val rank =arr(i).split(",")(3)
       map.put("assetId", recAssetId)
       map.put("assetname", recAssetName)
       map.put("assetpic", recAssetPic)

@@ -203,7 +203,7 @@ object OttContentTopN {
       val recAssetName = arr(i).split(",")(1)
       val recAssetPic = ""
       val recContentId = arr(i).split(",")(0)
-      val recProviderId = ""
+      val recProviderId = (i+1).toString
       val rank = arr(i).split(",")(2)
       map.put("assetId", recAssetId)
       map.put("assetname", recAssetName)

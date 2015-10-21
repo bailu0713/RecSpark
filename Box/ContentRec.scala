@@ -399,7 +399,7 @@ object ContentRec {
       val recAssetPic = ""
       val recContentId = reclist.split("#")(i).split(",")(1)
       val recProviderId = ""
-      val rank = ""
+      val rank = (i+1).toString
       map.put("assetId", recAssetId)
       map.put("assetname", recAssetName)
       map.put("assetpic", recAssetPic)
@@ -454,7 +454,7 @@ object ContentRec {
       val recAssetPic = ""
       val recContentId = reclist.split("#")(i).split(",")(1)
       val recProviderId = ""
-      val rank = ""
+      val rank = (i+1).toString
       map.put("assetId", recAssetId)
       map.put("assetname", recAssetName)
       map.put("assetpic", recAssetPic)
@@ -494,7 +494,7 @@ object ContentRec {
         val recAssetPic = ""
         val recContentId = reclist.split("#")(i).split(",")(1)
         val recProviderId = ""
-        val rank = ""
+        val rank = (i+1).toString
         map.put("assetId", recAssetId)
         map.put("assetname", recAssetName)
         map.put("assetpic", recAssetPic)

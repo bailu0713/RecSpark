@@ -135,6 +135,7 @@ object UserProperty {
     }
       .groupByKey()
       .foreach(tup => insertRedis(tup._1._1, tup._1._2, tup._1._3, sortByViewcountTopK(tup._2, params.recNumber)))
+    sc.stop()
   }
 
   /**

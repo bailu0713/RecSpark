@@ -266,7 +266,7 @@ object BehaviorRec {
       val recAssetPic = ""
       val recContentId = arr(i).split(",")(0)
       val recProviderId = ""
-      val rank = ""
+      val rank = (i+1).toString
       map.put("assetId", recAssetId)
       map.put("assetname", recAssetName)
       map.put("assetpic", recAssetPic)
