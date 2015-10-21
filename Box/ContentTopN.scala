@@ -159,8 +159,7 @@ object ContentTopN {
       .map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber))
     }
-    .foreach(println)
-//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
     //加入seriestype
     finalrdd
       .filter(tup => tup._5 != "0")
@@ -168,7 +167,7 @@ object ContentTopN {
       .map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
     }
-//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
 
     /**
      * level2id插入redis
@@ -179,7 +178,7 @@ object ContentTopN {
       .groupBy(tup => (tup._7, tup._8)).map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber))
     }
-//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
     //seriestype=0
     finalrdd
       .filter(tup => tup._7 != "0")
@@ -187,7 +186,7 @@ object ContentTopN {
       .map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
     }
-//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
 
     /**
      * level3id插入redis
@@ -198,7 +197,7 @@ object ContentTopN {
       .groupBy(tup => (tup._9, tup._10)).map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber))
     }
-//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0))
     //seriestype=0
     finalrdd
       .filter(tup => tup._9 != "0")
@@ -206,7 +205,7 @@ object ContentTopN {
       .map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
     }
-//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
 
     /**
      * level4id插入redis
@@ -218,7 +217,7 @@ object ContentTopN {
       .groupBy(tup => (tup._11, tup._12)).map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber))
     }
-//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0)) //seriestype=0
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, "no", 0)) //seriestype=0
 
     //seriestype=1
     finalrdd
@@ -227,7 +226,7 @@ object ContentTopN {
       .map { tup =>
       (tup._1._1, tup._1._2, sortByViewcountTopK(tup._2, params.recNumber), tup._1._3)
     }
-//      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
+      .foreach(tup => insertRedis(tup._1, tup._2, tup._3, tup._4.toString, 1))
     sc.stop()
   }
 
