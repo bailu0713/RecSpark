@@ -114,9 +114,10 @@ object ContentTopN {
        * 对于单集电视剧将其映射为电视剧的catalogid作为MovieId
        * 生成（contentid,contentidcount(总集数),seriestype(0,1)，1(1次观看)）
        * 电影则生成（contentid,1（总集数）,seriestype(0,1)，1(1次观看)）
+       * /*mapcidcount.get(tup._2).split("#")(1).toInt*/
        **/
       .map {
-      tup => if (mapcidcount.containsKey(tup._2)) ((mapcidcount.get(tup._2).split("#")(0), mapcidcount.get(tup._2).split("#")(1).toInt, 1), 1)
+      tup => if (mapcidcount.containsKey(tup._2)) ((mapcidcount.get(tup._2).split("#")(0), 1, 1), 1)
       else ((tup._2, 1, 0), 1)
     }
       //生成((contentid,seriestype),count)
@@ -273,7 +274,7 @@ object ContentTopN {
   }
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport,100000)
+    val jedis = new Jedis(redisip, redisport, 100000)
     jedis
   }
 
@@ -380,39 +381,40 @@ object ContentTopN {
 
     val keynum = jedis.llen(key).toInt
     val keynum2 = jedis2.llen(key).toInt
-
-    var i = 0
-    while (i < arr.length) {
-      val recAssetId = ""
-      val recAssetName = arr(i).split(",")(1)
-      val recAssetPic = ""
-      val recContentId = arr(i).split(",")(0)
-      val recParentName = levelName
-      val recParentId = levelId
-      val recProviderId = ""
-      val rank = (i + 1).toString
-      //      val rank =arr(i).split(",")(3)
-      map.put("assetId", recAssetId)
-      map.put("assetname", recAssetName)
-      map.put("assetpic", recAssetPic)
-      map.put("movieID", recContentId)
-      map.put("parentName", recParentName)
-      map.put("parentid", recParentId)
-      map.put("providerId", recProviderId)
-      map.put("rank", rank)
-      val value = JSONObject.fromObject(map).toString
-      pipeline.rpush(key, value)
-      pipeline2.rpush(key, value)
-      i += 1
+    if (arr.length >2) {
+      var i = 0
+      while (i < arr.length) {
+        val recAssetId = ""
+        val recAssetName = arr(i).split(",")(1)
+        val recAssetPic = ""
+        val recContentId = arr(i).split(",")(0)
+        val recParentName = levelName
+        val recParentId = levelId
+        val recProviderId = ""
+        val rank = (i + 1).toString
+        //      val rank =arr(i).split(",")(3)
+        map.put("assetId", recAssetId)
+        map.put("assetname", recAssetName)
+        map.put("assetpic", recAssetPic)
+        map.put("movieID", recContentId)
+        map.put("parentName", recParentName)
+        map.put("parentid", recParentId)
+        map.put("providerId", recProviderId)
+        map.put("rank", rank)
+        val value = JSONObject.fromObject(map).toString
+        pipeline.rpush(key, value)
+        pipeline2.rpush(key, value)
+        i += 1
+      }
+      for (j <- 0 until keynum) {
+        pipeline.lpop(key)
+      }
+      pipeline.sync()
+      for (j <- 0 until keynum2) {
+        pipeline2.lpop(key)
+      }
+      pipeline2.sync()
     }
-    for (j <- 0 until keynum) {
-      pipeline.lpop(key)
-    }
-    pipeline.sync()
-    for (j <- 0 until keynum2) {
-      pipeline2.lpop(key)
-    }
-    pipeline2.sync()
     jedis.disconnect()
     jedis2.disconnect()
   }

@@ -88,34 +88,36 @@ object OttContentRec {
     val rawData = new JdbcRDD(sc, initMySQL, "select MovieID,MovieName,CatalogID,TypeID,DramaTypeID from ottelementinfo where MovieID>? and MovieID<?;", 1, 2000000000, 10, extractValues)
       .filter(tup => tup._4.matches("\\d+"))
       .filter(tup => tup._5 != null && tup._5 != "NULL" && tup._5 != "" && tup._5.length >= 1)
-    val movie_tv = rawData
-      //去掉学校的媒资数据
-      .filter(tup => tup._4 != "21")
-      //((TypeID,DramaTypeID),(MovieID,MovieName,CatalogID))
-      .map(tup => ((tup._4, splitDaramaTypeID(tup._5)), (tup._1, tup._2, tup._3)))
-    val filnal_movie_tv = movie_tv.join(movie_tv)
-      .filter(tup => tup._2._1._1 != tup._2._2._1)
-      //(MovieID,CatalogID),(MovieID,MovieName)
-      .map(tup => ((tup._2._1._1, tup._2._1._3), (tup._2._2._1, tup._2._2._2)))
-      .groupByKey()
-      //没排序
-      .map(tup => (tup._1._1, tup._1._2, recList(tup._2, params.recNumber)))
-      .foreach(tup => insertRedis(tup._1, tup._2, tup._3))
+    if (rawData.count() > 100) {
+      val movie_tv = rawData
+        //去掉学校的媒资数据
+        .filter(tup => tup._4 != "21")
+        //((TypeID,DramaTypeID),(MovieID,MovieName,CatalogID))
+        .map(tup => ((tup._4, splitDaramaTypeID(tup._5)), (tup._1, tup._2, tup._3)))
+      val filnal_movie_tv = movie_tv.join(movie_tv)
+        .filter(tup => tup._2._1._1 != tup._2._2._1)
+        //(MovieID,CatalogID),(MovieID,MovieName)
+        .map(tup => ((tup._2._1._1, tup._2._1._3), (tup._2._2._1, tup._2._2._2)))
+        .groupByKey()
+        //没排序
+        .map(tup => (tup._1._1, tup._1._2, recList(tup._2, params.recNumber)))
+        .foreach(tup => insertRedis(tup._1, tup._2, tup._3))
 
-    //数字学校的type=21，dramatype=113
-    val school = rawData.filter(tup => tup._4 == "21")
-      //21中TypeID，catalogID都一样，只需一个来确认
-      //((TypeID,CatalogID),(MovieID,MovieName,CatalogID))
-      .map(tup => ((tup._4, tup._3), (tup._1, tup._2, tup._3)))
-    val finalschool = school.join(school)
-      .filter(tup => tup._2._1._1 != tup._2._2._1)
-      //(MovieID,CatalogID),(MovieID,Moviename)
-      .map(tup => ((tup._2._1._1, tup._2._1._3), (tup._2._2._1, tup._2._2._2)))
-      .groupByKey()
-      .map(tup => (tup._1._1, tup._1._2, recList(tup._2, params.recNumber)))
-      .foreach(tup => insertRedis(tup._1, tup._2, tup._3))
+      //数字学校的type=21，dramatype=113
+      val school = rawData.filter(tup => tup._4 == "21")
+        //21中TypeID，catalogID都一样，只需一个来确认
+        //((TypeID,CatalogID),(MovieID,MovieName,CatalogID))
+        .map(tup => ((tup._4, tup._3), (tup._1, tup._2, tup._3)))
+      val finalschool = school.join(school)
+        .filter(tup => tup._2._1._1 != tup._2._2._1)
+        //(MovieID,CatalogID),(MovieID,Moviename)
+        .map(tup => ((tup._2._1._1, tup._2._1._3), (tup._2._2._1, tup._2._2._2)))
+        .groupByKey()
+        .map(tup => (tup._1._1, tup._1._2, recList(tup._2, params.recNumber)))
+        .foreach(tup => insertRedis(tup._1, tup._2, tup._3))
 
-    sc.stop()
+      sc.stop()
+    }
   }
 
   def recList(iterable: Iterable[(String, String)], topK: Int): String = {
@@ -144,7 +146,7 @@ object OttContentRec {
   }
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport,100000)
+    val jedis = new Jedis(redisip, redisport, 100000)
     jedis
   }
 
@@ -170,31 +172,31 @@ object OttContentRec {
     val key = movieid + "_3_0_" + catalogid
     val arr = recItemList.split("#")
     val keynum = jedis.llen(key).toInt
-    var i = 0
-    while (i < arr.length) {
-      val recAssetId = ""
-      val recAssetName = arr(i).split(",")(1)
-      val recAssetPic = ""
-      val recContentId = arr(i).split(",")(0)
-      val recProviderId = ""
-      val rank = (i+1).toString
-      map.put("assetId", recAssetId)
-      map.put("assetname", recAssetName)
-      map.put("assetpic", recAssetPic)
-      map.put("movieID", recContentId)
-      map.put("providerId", recProviderId)
-      map.put("rank", rank)
-      val value = JSONObject.fromObject(map).toString
-      pipeline.rpush(key, value)
-      i += 1
+    if (arr.length > keynum) {
+      var i = 0
+      while (i < arr.length) {
+        val recAssetId = ""
+        val recAssetName = arr(i).split(",")(1)
+        val recAssetPic = ""
+        val recContentId = arr(i).split(",")(0)
+        val recProviderId = ""
+        val rank = (i + 1).toString
+        map.put("assetId", recAssetId)
+        map.put("assetname", recAssetName)
+        map.put("assetpic", recAssetPic)
+        map.put("movieID", recContentId)
+        map.put("providerId", recProviderId)
+        map.put("rank", rank)
+        val value = JSONObject.fromObject(map).toString
+        pipeline.rpush(key, value)
+        i += 1
+      }
+      for (j <- 0 until keynum) {
+        pipeline.lpop(key)
+      }
+      pipeline.sync()
     }
 
-    for (j <- 0 until keynum) {
-      pipeline.lpop(key)
-    }
-    pipeline.sync()
     jedis.disconnect()
   }
-
-
 }

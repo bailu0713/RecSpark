@@ -71,7 +71,6 @@ object OttChannelTopN {
   }
 
   def run(params: Params) {
-
     val conf = new SparkConf().setAppName("OttChannelTopN")
     val sc = new SparkContext(conf)
     val dfDay = new SimpleDateFormat("yyyy-MM-dd")
@@ -83,33 +82,32 @@ object OttChannelTopN {
     val recChannelRdd = rawRdd.collect().take(params.recNumber)
     val channelRecommend = new ChannelRecommend()
     val key = "Broadcast_1_1_1"
-//    val key="Broadcast_3_1_1"
+    //    val key="Broadcast_3_1_1"
 
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
     val pipeline = jedis.pipelined()
     val keynum = jedis.llen(key).toInt
-
-    for (i <- 0 until recChannelRdd.length) {
-      channelRecommend.setChannelId(recChannelRdd(i)._1)
-      channelRecommend.setChannelname(recChannelRdd(i)._2)
-      channelRecommend.setChannelpic(recChannelRdd(i)._3)
-      channelRecommend.setRank((i+1).toString)
-      val value = JSONObject.fromObject(channelRecommend).toString
-
-      pipeline.rpush(key, value)
+    if (rawRdd.count() > keynum) {
+      for (i <- 0 until recChannelRdd.length) {
+        channelRecommend.setChannelId(recChannelRdd(i)._1)
+        channelRecommend.setChannelname(recChannelRdd(i)._2)
+        channelRecommend.setChannelpic(recChannelRdd(i)._3)
+        channelRecommend.setRank((i + 1).toString)
+        val value = JSONObject.fromObject(channelRecommend).toString
+        pipeline.rpush(key, value)
+        pipeline.sync()
+      }
+      for (j <- 0 until keynum) {
+        pipeline.lpop(key)
+      }
       pipeline.sync()
-
     }
-    for (j <- 0 until keynum) {
-      pipeline.lpop(key)
-    }
-    pipeline.sync()
     jedis.disconnect()
     sc.stop()
   }
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport,100000)
+    val jedis = new Jedis(redisip, redisport, 100000)
     jedis
   }
 
@@ -161,5 +159,5 @@ object OttChannelTopN {
     private var rank: String = null
   }
 
-
 }
+

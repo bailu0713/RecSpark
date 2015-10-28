@@ -38,7 +38,7 @@ object OttBehaviorRec {
   /**
    * mysql配置信息
    **/
-  val configs=new AllConfigs
+  val configs = new AllConfigs
   val MYSQL_HOST = configs.OTT_MYSQL_HOST
   val MYSQL_PORT = configs.OTT_MYSQL_PORT
   val MYSQL_DB = configs.OTT_MYSQL_DB
@@ -118,7 +118,7 @@ object OttBehaviorRec {
     //    def mapSingleCid(singleCid:String)=series_tv_data.map(tup=>if(tup._2.indexOf(singleCid)>=0) tup._1.take(1) else singleCid.take(1))
     val timespan = timeSpans(params.timeSpan)
     val HDFS_DIR = s"hdfs://172.16.141.215:8020/data/ire/source/rec/ott/play/{$timespan}.csv"
-//    val map = mapSingleCid(MYSQL_QUERY)
+    //    val map = mapSingleCid(MYSQL_QUERY)
     val rawRdd = sc.textFile(HDFS_DIR)
     val tripleRdd = rawRdd
       .filter { line => val field = line.split(","); field(5).equals("1") && field(4) != ""}
@@ -130,11 +130,11 @@ object OttBehaviorRec {
       /**
        * 对于单集电视剧将其映射为电视剧的catalogid
        **/
-//      .map {
-//      tup => if (map.containsKey(tup._2)) ((tup._1, map.get(tup._2)), 1)
-//      else ((tup._1, tup._2), 1)
-//    }
-      .map{tup=>((tup._1,tup._2),1)}
+      //      .map {
+      //      tup => if (map.containsKey(tup._2)) ((tup._1, map.get(tup._2)), 1)
+      //      else ((tup._1, tup._2), 1)
+      //    }
+      .map { tup => ((tup._1, tup._2), 1)}
       //过滤掉已经下线的contentid
       //      .filter(tup=>cidnameMap.contains(tup._1._2))
       //生成(userid,contentid,score)
@@ -177,7 +177,7 @@ object OttBehaviorRec {
   }
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport,100000)
+    val jedis = new Jedis(redisip, redisport, 100000)
     jedis
   }
 
@@ -258,31 +258,31 @@ object OttBehaviorRec {
     val arr = recItemList.split("#")
 
     val keynum = jedis.llen(key).toInt
+    if (arr.length >=keynum) {
+      var i = 0
+      while (i < arr.length) {
+        val recAssetId = ""
+        val recAssetName = arr(i).split(",")(1)
+        val recAssetPic = ""
+        val recContentId = arr(i).split(",")(0)
+        val recProviderId = ""
+        val rank = (i + 1).toString
+        map.put("assetId", recAssetId)
+        map.put("assetname", recAssetName)
+        map.put("assetpic", recAssetPic)
+        map.put("movieID", recContentId)
+        map.put("providerId", recProviderId)
+        map.put("rank", rank)
+        val value = JSONObject.fromObject(map).toString
 
-    var i = 0
-    while (i < arr.length) {
-      val recAssetId = ""
-      val recAssetName = arr(i).split(",")(1)
-      val recAssetPic = ""
-      val recContentId = arr(i).split(",")(0)
-      val recProviderId = ""
-      val rank = (i+1).toString
-      map.put("assetId", recAssetId)
-      map.put("assetname", recAssetName)
-      map.put("assetpic", recAssetPic)
-      map.put("movieID", recContentId)
-      map.put("providerId", recProviderId)
-      map.put("rank", rank)
-      val value = JSONObject.fromObject(map).toString
-
-      pipeline.rpush(key, value)
-      i += 1
+        pipeline.rpush(key, value)
+        i += 1
+      }
+      for (j <- 0 until keynum) {
+        pipeline.lpop(key)
+      }
+      pipeline.sync()
     }
-
-    for (j <- 0 until keynum) {
-      pipeline.lpop(key)
-    }
-    pipeline.sync()
     jedis.disconnect()
   }
 }

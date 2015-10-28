@@ -172,7 +172,7 @@ object BehaviorRec {
   }
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport,100000)
+    val jedis = new Jedis(redisip, redisport, 100000)
     jedis
   }
 
@@ -252,42 +252,59 @@ object BehaviorRec {
     val pipeline2 = jedis2.pipelined()
 
     val map = new util.HashMap[String, String]()
-    val key = targetUser + "_5_0"
+//    val key = targetUser + "_5_0"
+    //@2015-10-28
+    val newkey = targetUser + "_5_10019864_0"
+
     val arr = recItemList.split("#")
+    //    val keynum = jedis.llen(key).toInt
+    //    val keynum2 = jedis2.llen(key).toInt
+    //@2015-10-28
+    val keynum = jedis.llen(newkey).toInt
+    val keynum2 = jedis2.llen(newkey).toInt
+    if (arr.length > 2) {
+      var i = 0
+      while (i < arr.length) {
+        val recAssetId = ""
+        val recAssetName = arr(i).split(",")(1)
+        val recAssetPic = ""
+        val recContentId = arr(i).split(",")(0)
+        val recProviderId = ""
+        val rank = (i + 1).toString
+        map.put("assetId", recAssetId)
+        map.put("assetname", recAssetName)
+        map.put("assetpic", recAssetPic)
+        map.put("movieID", recContentId)
+        map.put("providerId", recProviderId)
+        map.put("rank", rank)
+        val value = JSONObject.fromObject(map).toString
+        pipeline.rpush(newkey, value)
+        pipeline2.rpush(newkey, value)
+        //@2015-10-28
+        //        pipeline.rpush(key, value)
+        //        pipeline2.rpush(key, value)
+        i += 1
+      }
+      //@2015-10-28
+      for (j <- 0 until keynum) {
+        pipeline.lpop(newkey)
+      }
+      pipeline.sync()
+      for (j <- 0 until keynum2) {
+        pipeline2.lpop(newkey)
+      }
+      pipeline2.sync()
 
+      //      for (j <- 0 until keynum) {
+      //        pipeline.lpop(key)
+      //      }
+      //      pipeline.sync()
+      //      for (j <- 0 until keynum2) {
+      //        pipeline2.lpop(key)
+      //      }
+      //      pipeline2.sync()
 
-    val keynum = jedis.llen(key).toInt
-    val keynum2 = jedis2.llen(key).toInt
-
-    var i = 0
-    while (i < arr.length) {
-      val recAssetId = ""
-      val recAssetName = arr(i).split(",")(1)
-      val recAssetPic = ""
-      val recContentId = arr(i).split(",")(0)
-      val recProviderId = ""
-      val rank = (i+1).toString
-      map.put("assetId", recAssetId)
-      map.put("assetname", recAssetName)
-      map.put("assetpic", recAssetPic)
-      map.put("movieID", recContentId)
-      map.put("providerId", recProviderId)
-      map.put("rank", rank)
-      val value = JSONObject.fromObject(map).toString
-
-      pipeline.rpush(key, value)
-      pipeline2.rpush(key, value)
-      i += 1
     }
-
-    for (j <- 0 until keynum) {
-      pipeline.lpop(key)
-    }
-    pipeline.sync()
-    for (j <- 0 until keynum2) {
-      pipeline2.lpop(key)
-    }
-    pipeline2.sync()
     jedis.disconnect()
     jedis2.disconnect()
   }

@@ -26,7 +26,7 @@ object UserProperty {
   /**
    * mysql配置信息
    **/
-  val configs=new AllConfigs
+  val configs = new AllConfigs
   val MYSQL_HOST = configs.BOX_MYSQL_HOST
   val MYSQL_PORT = configs.BOX_MYSQL_PORT
   val MYSQL_DB = configs.BOX_MYSQL_DB
@@ -204,7 +204,7 @@ object UserProperty {
   }
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport,100000)
+    val jedis = new Jedis(redisip, redisport, 100000)
     jedis
   }
 
@@ -251,36 +251,36 @@ object UserProperty {
 
     val keynum = jedis.llen(key).toInt
     val keynum2 = jedis2.llen(key).toInt
+    if (arr.length >=keynum) {
+      var i = 0
+      while (i < arr.length) {
+        val recAssetId = ""
+        val recAssetName = arr(i).split(",")(1)
+        val recAssetPic = ""
+        val recContentId = arr(i).split(",")(0)
+        val recProviderId = ""
+        val rank = arr(i).split(",")(2)
+        map.put("assetId", recAssetId)
+        map.put("assetname", recAssetName)
+        map.put("assetpic", recAssetPic)
+        map.put("movieID", recContentId)
+        map.put("providerId", recProviderId)
+        map.put("rank", rank)
+        val value = JSONObject.fromObject(map).toString
 
-    var i = 0
-    while (i < arr.length) {
-      val recAssetId = ""
-      val recAssetName = arr(i).split(",")(1)
-      val recAssetPic = ""
-      val recContentId = arr(i).split(",")(0)
-      val recProviderId = ""
-      val rank = arr(i).split(",")(2)
-      map.put("assetId", recAssetId)
-      map.put("assetname", recAssetName)
-      map.put("assetpic", recAssetPic)
-      map.put("movieID", recContentId)
-      map.put("providerId", recProviderId)
-      map.put("rank", rank)
-      val value = JSONObject.fromObject(map).toString
-
-      pipeline.rpush(key, value)
-      pipeline2.rpush(key, value)
-
-      i += 1
+        pipeline.rpush(key, value)
+        pipeline2.rpush(key, value)
+        i += 1
+      }
+      for (j <- 0 until keynum) {
+        pipeline.lpop(key)
+      }
+      pipeline.sync()
+      for (j <- 0 until keynum2) {
+        pipeline2.lpop(key)
+      }
+      pipeline2.sync()
     }
-    for (j <- 0 until keynum) {
-      pipeline.lpop(key)
-    }
-    pipeline.sync()
-    for (j <- 0 until keynum2) {
-      pipeline2.lpop(key)
-    }
-    pipeline2.sync()
     jedis.disconnect()
     jedis2.disconnect()
   }

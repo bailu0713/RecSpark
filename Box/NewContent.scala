@@ -103,7 +103,7 @@ object NewContent {
 
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport,100000)
+    val jedis = new Jedis(redisip, redisport, 100000)
     jedis
   }
 
@@ -143,35 +143,33 @@ object NewContent {
     val map = new util.HashMap[String, String]()
     val key = if (levelId.length > 1) "Newcontentlist_5_" + levelId + "_" + seriestype
     else "Newcontentlist_5_0_" + seriestype
-
     val keynum = jedis.llen(key).toInt
     val keynum2 = jedis2.llen(key).toInt
-
-    for (i <- 0 until list.length) {
-      val recAssetId = ""
-      val recAssetPic = ""
-      val recProviderId = ""
-      val rank = (i+1).toString
-      map.put("assetId", recAssetId)
-      map.put("assetname", list(i)._2)
-      map.put("assetpic", recAssetPic)
-      map.put("movieID", list(i)._1)
-      map.put("providerId", recProviderId)
-      map.put("rank", rank)
-      val value = JSONObject.fromObject(map).toString
-
-      pipeline.rpush(key, value)
-      pipeline2.rpush(key, value)
+    if (list.length >=keynum) {
+      for (i <- 0 until list.length) {
+        val recAssetId = ""
+        val recAssetPic = ""
+        val recProviderId = ""
+        val rank = (i + 1).toString
+        map.put("assetId", recAssetId)
+        map.put("assetname", list(i)._2)
+        map.put("assetpic", recAssetPic)
+        map.put("movieID", list(i)._1)
+        map.put("providerId", recProviderId)
+        map.put("rank", rank)
+        val value = JSONObject.fromObject(map).toString
+        pipeline.rpush(key, value)
+        pipeline2.rpush(key, value)
+      }
+      for (j <- 0 until keynum) {
+        pipeline.lpop(key)
+      }
+      pipeline.sync()
+      for (j <- 0 until keynum2) {
+        pipeline2.lpop(key)
+      }
+      pipeline2.sync()
     }
-
-    for (j <- 0 until keynum) {
-      pipeline.lpop(key)
-    }
-    pipeline.sync()
-    for (j <- 0 until keynum2) {
-      pipeline2.lpop(key)
-    }
-    pipeline2.sync()
     jedis.disconnect()
     jedis2.disconnect()
   }

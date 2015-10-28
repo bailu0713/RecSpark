@@ -1,6 +1,6 @@
 package com.ctvit.tv
 
-import java.sql.{Connection, ResultSet, DriverManager}
+import java.sql.{ResultSet, DriverManager}
 import java.text.SimpleDateFormat
 import java.util
 import java.util.{Calendar, Date}
@@ -15,18 +15,16 @@ import scopt.OptionParser
 /**
  * Created by BaiLu on 2015/8/24.
  */
-object BgcTV {
-
-  val configs=new AllConfigs
-  val MYSQL_HOST = configs.OTT_MYSQL_HOST
-  val MYSQL_PORT = configs.OTT_MYSQL_PORT
-  val MYSQL_DB = configs.OTT_MYSQL_DB
-  val MYSQL_DB_USER = configs.OTT_MYSQL_DB_USER
-  val MYSQL_DB_PASSWD = configs.OTT_MYSQL_DB_PASSWD
+object BgcTVTest {
+  val MYSQL_HOST = "172.16.168.236"
+  val MYSQL_PORT = "3306"
+  val MYSQL_DB = "ire"
+  val MYSQL_DB_USER = "ire"
+  val MYSQL_DB_PASSWD = "ZAQ!XSW@CDE#"
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
 
-
+  val configs=new AllConfigs
   val REDIS_IP = configs.OTT_REDIS_IP
   val REDIS_PORT = configs.OTT_REDIS_PORT
 
@@ -58,7 +56,7 @@ object BgcTV {
     val defaultParams = Params()
     val mysqlFlag = new MysqlFlag
     val parser = new OptionParser[Params]("ContentRecParams") {
-      head("set BGCTVParams")
+      head("set BRVTVParams")
       opt[Int]("recNumber")
         .text(s"the number of reclist default:${defaultParams.recNumber}")
         .action((x, c) => c.copy(recNumber = x))
@@ -90,9 +88,6 @@ object BgcTV {
   def run(params: Params): Unit = {
     val conf = new SparkConf().setAppName("BGCTV")
     val sc = new SparkContext(conf)
-
-
-
     val df = new SimpleDateFormat("yyyyMMdd")
     //@date 2015-10-09
     val dfAudienceDay = new SimpleDateFormat("yyyy-MM-dd")
@@ -128,7 +123,6 @@ object BgcTV {
       val dbTimeAudienceLoop = dbTimeLiveLoop.split(" ")(1).replaceAll(":", "").substring(0, 4)
 
       for (column <- Array("", "电视剧", "电影", "少儿", "综合", "体育", "科教", "财经", "娱乐")) {
-
         /**
          * 直播推荐的数据结构
          **/
@@ -144,93 +138,85 @@ object BgcTV {
         /**
          * redis中数据结构
          **/
-/*
+
         if (column.equals("")) {
-          val rddnocolumn = new JdbcRDD(sc, initMySQL, s"select a.channelId from (select channelId,channelName,programTitle,serviceId from livemedia where startTime<='$dbTimeLiveLoop' and endTime>'$dbTimeLiveLoop'  and channelId <> 'cctv1' and channelId<>'cctv5'and channelId <> 'cctv6' and channelId<>'cctv3' and channelId <> 'cctv8' and channelId<>'5927c7a6dd31f38686fafa073e2e13bc' and channelId<>'590e187a8799b1890175d25ec85ea352' and channelId<>'28502a1b6bf5fbe7c6da9241db596237' and channelId<>'9291c40ec1cec1281638720c74c7245f' and channelId<>'1ce026a774dba0d13dc0cef453248fb7' and channelId<>'5dfcaefe6e7203df9fbe61ffd64ed1c4' and channelId<>'23ab87816c24f90e5865116512e12c47' and channelId<>'20831bb807a45638cfaf81df1122024d' and channelId<>'55fc65ef82e92d0e1ccb2b3f200a7529' and channelId<>'c8bf387b1824053bdb0423ef806a2227' and channelId<>'c39a7a374d888bce3912df71bcb0d580' and channelId<>'6a3f44b1abfdfb49ddd051f9e683c86d' and channelId<>'dragontv' and channelId<>'322fa7b66243b8d0edef9d761a42f263' and channelId<>'antv' and wikiTitle<>'广告')a left join (select channel,tvRating,minute_time from live_audience_rating where minute_time= '$dbTimeAudienceLoop' and date_time='$dbTimeAudienceDay')b on a.serviceId=b.channel where a.serviceId>? and a.serviceId<? order by b.tvRating desc;", 1, 2000000000, 1, extractValues)
-          .distinct()
+          val rddnocolumn = new JdbcRDD(sc, initMySQL, s"select a.channelId,a.serviceId from (select channelId,channelName,programTitle,serviceId from livemedia where startTime<='$dbTimeLiveLoop' and endTime>'$dbTimeLiveLoop'  and channelId <> 'cctv1' and channelId<>'cctv5'and channelId <> 'cctv6' and channelId<>'cctv3' and channelId <> 'cctv8' and channelId<>'5927c7a6dd31f38686fafa073e2e13bc' and channelId<>'590e187a8799b1890175d25ec85ea352' and channelId<>'28502a1b6bf5fbe7c6da9241db596237' and channelId<>'9291c40ec1cec1281638720c74c7245f' and channelId<>'1ce026a774dba0d13dc0cef453248fb7' and channelId<>'5dfcaefe6e7203df9fbe61ffd64ed1c4' and channelId<>'23ab87816c24f90e5865116512e12c47' and channelId<>'20831bb807a45638cfaf81df1122024d' and channelId<>'55fc65ef82e92d0e1ccb2b3f200a7529' and channelId<>'c8bf387b1824053bdb0423ef806a2227' and channelId<>'c39a7a374d888bce3912df71bcb0d580' and channelId<>'6a3f44b1abfdfb49ddd051f9e683c86d' and channelId<>'dragontv' and channelId<>'322fa7b66243b8d0edef9d761a42f263' and channelId<>'antv' and wikiTitle<>'广告')a left join (select channel,tvRating,minute_time from live_audience_rating where minute_time= '$dbTimeAudienceLoop' and date_time='$dbTimeAudienceDay')b on a.serviceId=b.channel where a.serviceId>? and a.serviceId<? order by b.tvRating desc;", 1, 2000000000, 1, extractValues)
           val liveChannelIdCount = rddnocolumn.count().toInt
           rddnocolumn.take(liveChannelIdCount)
+          rddnocolumn.collect().foreach(channelId => channelList.add(channelId))
 
           /**
            * 直播频道超过12条
            **/
           if (liveChannelIdCount >= params.recNumber) {
-            rddnocolumn.collect().foreach(channelId => channelList.add(channelId))
-            //            rddnocolumn.foreach(channelId => channelList.add(channelId))
-            //            channelList.add(rddnocolumn.foreach(println).toString)
             channelMap.put("rec_livelist", channelList)
             val channelobj = JSONObject.fromObject(channelMap).toString
             mediaMap.put("rec_vodlist", mediaList)
             val mediaobj = JSONObject.fromObject(mediaMap).toString
             val key = dbTimeAudienceLoop + "_all"
             val value = channelobj.concat(mediaobj).replace("}{", ",")
-//            insertRedis(key, value)
+            insertRedis(key, value)
           }
 
           /**
-           * 直播频道不足推荐的个数
+           * 直播频道不足推荐的条数
            **/
           else {
-            rddnocolumn.collect().foreach(channelId => channelList.add(channelId))
+            //            rddnocolumn.collect().foreach(channelId => channelList.add(channelId))
+            //            rddnocolumn.foreach(tup => channelList.add(tup))
+            //            channelList.add(rddnocolumn.foreach(println).toString)
             channelMap.put("rec_livelist", channelList)
             val channelobj = JSONObject.fromObject(channelMap).toString
-
             val mediaobj = rec_vod_list(SQL_VAIETY, params.recNumber - liveChannelIdCount)
-
             val key = dbTimeAudienceLoop + "_all"
             val value = channelobj.concat(mediaobj).replace("}{", ",")
-//            insertRedis(key, value)
+            insertRedis(key, value)
           }
-
         }
         else {
-          val rddcolumn = new JdbcRDD(sc, initMySQL, s"select a.channelId from (select channelId,channelName,programTitle,serviceId from livemedia where startTime<='$dbTimeLiveLoop' and endTime>'$dbTimeLiveLoop'  and programType='$column' and channelId <> 'cctv1' and channelId<>'cctv5'and channelId <> 'cctv6' and channelId<>'cctv3' and channelId <> 'cctv8' and channelId<>'5927c7a6dd31f38686fafa073e2e13bc' and channelId<>'590e187a8799b1890175d25ec85ea352' and channelId<>'28502a1b6bf5fbe7c6da9241db596237' and channelId<>'9291c40ec1cec1281638720c74c7245f' and channelId<>'1ce026a774dba0d13dc0cef453248fb7' and channelId<>'5dfcaefe6e7203df9fbe61ffd64ed1c4' and channelId<>'23ab87816c24f90e5865116512e12c47' and channelId<>'20831bb807a45638cfaf81df1122024d' and channelId<>'55fc65ef82e92d0e1ccb2b3f200a7529' and channelId<>'c8bf387b1824053bdb0423ef806a2227' and channelId<>'c39a7a374d888bce3912df71bcb0d580' and channelId<>'6a3f44b1abfdfb49ddd051f9e683c86d' and channelId<>'dragontv' and channelId<>'322fa7b66243b8d0edef9d761a42f263' and channelId<>'antv' and wikiTitle<>'广告')a left join (select channel,tvRating,minute_time from live_audience_rating where minute_time= '$dbTimeAudienceLoop' and date_time='$dbTimeAudienceDay')b on a.serviceId=b.channel where a.serviceId>? and a.serviceId<? order by b.tvRating desc;", 1, 2000000000, 1, extractValues)
-          .distinct()
-
+          val rddcolumn = new JdbcRDD(sc, initMySQL, s"select a.channelId,a.serviceId from (select channelId,channelName,programTitle,serviceId from livemedia where startTime<='$dbTimeLiveLoop' and endTime>'$dbTimeLiveLoop'  and programType='$column' and channelId <> 'cctv1' and channelId<>'cctv5'and channelId <> 'cctv6' and channelId<>'cctv3' and channelId <> 'cctv8' and channelId<>'5927c7a6dd31f38686fafa073e2e13bc' and channelId<>'590e187a8799b1890175d25ec85ea352' and channelId<>'28502a1b6bf5fbe7c6da9241db596237' and channelId<>'9291c40ec1cec1281638720c74c7245f' and channelId<>'1ce026a774dba0d13dc0cef453248fb7' and channelId<>'5dfcaefe6e7203df9fbe61ffd64ed1c4' and channelId<>'23ab87816c24f90e5865116512e12c47' and channelId<>'20831bb807a45638cfaf81df1122024d' and channelId<>'55fc65ef82e92d0e1ccb2b3f200a7529' and channelId<>'c8bf387b1824053bdb0423ef806a2227' and channelId<>'c39a7a374d888bce3912df71bcb0d580' and channelId<>'6a3f44b1abfdfb49ddd051f9e683c86d' and channelId<>'dragontv' and channelId<>'322fa7b66243b8d0edef9d761a42f263' and channelId<>'antv' and wikiTitle<>'广告')a left join (select channel,tvRating,minute_time from live_audience_rating where minute_time= '$dbTimeAudienceLoop' and date_time='$dbTimeAudienceDay')b on a.serviceId=b.channel where a.serviceId>? and a.serviceId<? order by b.tvRating desc;", 1, 2000000000, 1, extractValues)
           val liveChannelIdCount = rddcolumn.count().toInt
           rddcolumn.take(liveChannelIdCount)
+          rddcolumn.collect().foreach(channelId => channelList.add(channelId))
+
 
           /**
            * 直播频道超过12条
            **/
           if (liveChannelIdCount >= params.recNumber) {
-            rddcolumn.collect().foreach(channelId => channelList.add(channelId))
             channelMap.put("rec_livelist", channelList)
             val channelobj = JSONObject.fromObject(channelMap).toString
             mediaMap.put("rec_vodlist", mediaList)
             val mediaobj = JSONObject.fromObject(mediaMap).toString
             val key = dbTimeAudienceLoop + "_" + column
             val value = channelobj.concat(mediaobj).replace("}{", ",")
-//            insertRedis(key, value)
+            insertRedis(key, value)
+
           }
 
           /**
-           * 直播频道不足推荐的个数
+           * 直播频道不足推荐的条数
            **/
           else {
-            rddcolumn.collect().foreach(channelId => channelList.add(channelId))
             channelMap.put("rec_livelist", channelList)
             val channelobj = JSONObject.fromObject(channelMap).toString
             val mediaobj = rec_vod_list(columnMatch(column), params.recNumber - liveChannelIdCount)
             val key = dbTimeAudienceLoop + "_" + column
             val value = channelobj.concat(mediaobj).replace("}{", ",")
-
-//            insertRedis(key, value)
+            insertRedis(key, value)
           }
         }
-*/
       }
     }
-
     sc.stop()
   }
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport,100000)
+    val jedis = new Jedis(redisip, redisport)
     jedis
   }
 
-  def initMySQL(): Connection = {
+  def initMySQL() = {
     Class.forName(MYSQL_DRIVER)
     DriverManager.getConnection(MYSQL_CONNECT, MYSQL_DB_USER, MYSQL_DB_PASSWD)
   }
@@ -259,19 +245,19 @@ object BgcTV {
       mediaInnerMap.put("mediaid", result.getString(2))
       mediaInnerMap.put("index", result.getString(3))
       mediaInnerMap.put("p_pic", result.getString(4))
-      //list中添加的是hashmap的一个引用指向，
-      // 如果将mediaInnerMap放在外面定义，list每次都引用一个对象，list会出现相同的结果
+      //list中添加的是hashmap的一个指向，
+      // 如果将mediaInnerMap放在外面定义，list会出现相同的结果
       mediaList.add(mediaInnerMap)
     }
     mediaMap.put("rec_vodlist", mediaList)
     val vodString = JSONObject.fromObject(mediaMap).toString
-    con.close()
     vodString
   }
 
   def extractValues(r: ResultSet) = {
     r.getString(1)
   }
+
 
   /**
    * 将推荐的结果写入redis
