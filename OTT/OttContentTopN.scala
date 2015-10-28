@@ -195,7 +195,7 @@ object OttContentTopN {
      **/
     val key = "Topcontentlist_3_" + catalogid + "_0"
     val keynum = jedis.llen(key).toInt
-    if (arr.length > keynum) {
+    if (arr.length >= keynum) {
       var i = 0
       while (i < arr.length) {
         val recAssetId = ""

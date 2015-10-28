@@ -172,7 +172,7 @@ object OttContentRec {
     val key = movieid + "_3_0_" + catalogid
     val arr = recItemList.split("#")
     val keynum = jedis.llen(key).toInt
-    if (arr.length > keynum) {
+    if (arr.length >= keynum) {
       var i = 0
       while (i < arr.length) {
         val recAssetId = ""

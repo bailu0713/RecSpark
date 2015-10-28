@@ -146,7 +146,7 @@ object OttNewContent {
     else "Newcontentlist_3_0_" + seriestype
 
     val keynum = jedis.llen(key).toInt
-    if (list.length > keynum) {
+    if (list.length >= keynum) {
       for (i <- 0 until list.length) {
         val recAssetId = ""
         val recAssetPic = ""

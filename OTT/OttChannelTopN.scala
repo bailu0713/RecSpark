@@ -87,7 +87,7 @@ object OttChannelTopN {
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
     val pipeline = jedis.pipelined()
     val keynum = jedis.llen(key).toInt
-    if (rawRdd.count() > keynum) {
+    if (rawRdd.count() >= keynum) {
       for (i <- 0 until recChannelRdd.length) {
         channelRecommend.setChannelId(recChannelRdd(i)._1)
         channelRecommend.setChannelname(recChannelRdd(i)._2)
