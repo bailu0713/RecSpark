@@ -99,7 +99,7 @@ object ContentRec {
       .filter(tup => tup._3 != "").filter(tup => tup._3 != "null")
     val series_data = new JdbcRDD(sc, initMySQL, "SELECT catalog_info.title, catalog_info.id,catalog_info.genre,catalog_info.create_time,catalog_info.country, ire_content_relation.level1Id,ire_content_relation.seriesType ,ire_content_relation.level2Id, ire_content_relation.level3Id, ire_content_relation.level4Id from ire_content_relation INNER JOIN catalog_info ON ire_content_relation.contentId = catalog_info.id where catalog_info.id >=? and catalog_info.id <= ?;", 1, 2000000000, 10, extractValues)
       .filter(tup => tup._3 != "").filter(tup => tup._3 != "null")
-    val series_tv_data = new JdbcRDD(sc, initMySQL, "select ire_content_relation.contentId,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1 and ire_content_relation.contentId>=? and ire_content_relation.contentId<=?;", 1, 2000000000, 10, extractSeriesTvValues)
+    val series_tv_data = new JdbcRDD(sc, initMySQL, "select ire_content_relation.contentId,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1  and sort_index is not null and ire_content_relation.contentId>=? and ire_content_relation.contentId<=?;", 1, 2000000000, 10, extractSeriesTvValues)
       .filter(tup => tup._2 != "").filter(tup => tup._2 != "null")
 
       /** 映射为tuple，电视剧映射为(catalog_id,element_id) */

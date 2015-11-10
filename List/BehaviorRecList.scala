@@ -1,4 +1,8 @@
-package com.ctvit.box
+package com.ctvit.list
+
+/**
+ * Created by BaiLu on 2015/11/10.
+ */
 
 import java.sql.{Connection, DriverManager}
 import java.text.SimpleDateFormat
@@ -6,18 +10,16 @@ import java.util
 import java.util.{Calendar, Date}
 
 import com.ctvit.{AllConfigs, MysqlFlag}
-import net.sf.json.JSONObject
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.mllib.recommendation.{ALS, Rating}
 import org.apache.spark.{SparkConf, SparkContext}
-import redis.clients.jedis.Jedis
 import scopt.OptionParser
-
-import scala.collection.mutable
 
 /**
  * Created by BaiLu on 2015/8/18.
  */
-object BehaviorRec {
+object BehaviorRecList {
 
   private case class Params(
                              numIterations: Int = 10,
@@ -44,14 +46,6 @@ object BehaviorRec {
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
   val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1 and sort_index is not null;"
   val MYSQL_CID_NAME = "select contentName,contentId from ire_content_relation;"
-
-  /**
-   * redis配置信息
-   **/
-
-  val REDIS_IP = configs.BOX_REDIS_IP
-  val REDIS_IP2 = configs.BOX_REDIS_IP2
-  val REDIS_PORT = configs.BOX_REDIS_PORT
 
 
   def main(args: Array[String]) {
@@ -104,36 +98,24 @@ object BehaviorRec {
     }
   }
 
-  val cidnameMap = getCidName(MYSQL_CID_NAME)
-
   private def run(params: Params) {
     val conf = new SparkConf().setAppName("BehaviorRecommendaton")
     val sc = new SparkContext(conf)
-
-    /**
-     * 读取配置文件信息，之前的参数采用配置文件的方式获取
-     *
-     **/
-    //    def mapSingleCid(singleCid:String)=series_tv_data.map(tup=>if(tup._2.indexOf(singleCid)>=0) tup._1.take(1) else singleCid.take(1))
     val timespan = timeSpans(params.timeSpan)
+    val df = new SimpleDateFormat("yyyyMMdd")
+    val today = df.format(new Date())
+    val HDFS_DIR_RECLIST = s"hdfs://172.16.141.215:8020/data/ire/result/rec/behavior/$today"
     val HDFS_DIR = s"hdfs://172.16.141.215:8020/data/ire/source/rec/xor/vod/{$timespan}.csv"
     val map = mapSingleCid(MYSQL_QUERY)
     val rawRdd = sc.textFile(HDFS_DIR)
     val tripleRdd = rawRdd.map { line => val field = line.split(","); (field(11), field(0))}
       .filter(tup => tup._1.matches("\\d+"))
       .filter(tup => tup._2.matches("\\d+"))
-
-      /**
-       * 对于单集电视剧将其映射为电视剧的catalogid
-       **/
       .map {
       tup => if (map.containsKey(tup._2)) ((tup._1, map.get(tup._2)), 1)
       else ((tup._1, tup._2), 1)
     }
-      //过滤掉已经下线的contentid
-      //      .filter(tup=>cidnameMap.contains(tup._1._2))
-      //生成(userid,contentid,score)
-      .reduceByKey(_ + _)
+      .reduceByKey(_ + _, 15)
 
 
     val tripleRating = tripleRdd.map(tup => Rating(tup._1._1.toInt, tup._1._2.toInt, tup._2.toDouble))
@@ -146,12 +128,18 @@ object BehaviorRec {
     val recRdd = model.predict(tripleRdd.map(tup => (tup._1._1.toInt, tup._1._2.toInt)))
       .map { case Rating(user, item, score) => (user, (item, score))}
       .groupByKey(15)
-
-      /**
-       * 返回(targetuser，recItemList)
-       **/
       .map(tup => (tup._1.toString, sortByScore(tup._2, params.recNumber)))
-    recRdd.foreach(tup => insertRedis(tup._1, tup._2))
+
+    val hadoopconf = new Configuration()
+    val fs = FileSystem.get(hadoopconf)
+    val path = new Path(HDFS_DIR_RECLIST)
+    if (fs.exists(path)) {
+      fs.delete(path, true)
+      recRdd.saveAsTextFile(HDFS_DIR_RECLIST)
+    }
+    else
+      recRdd.saveAsTextFile(HDFS_DIR_RECLIST)
+
 
     sc.stop()
 
@@ -171,10 +159,6 @@ object BehaviorRec {
     buffer.toString
   }
 
-  def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport, 100000)
-    jedis
-  }
 
   /**
    * 将电视剧系列的sortindex每一项作为key，catalogid作为value
@@ -202,22 +186,6 @@ object BehaviorRec {
     DriverManager.getConnection(MYSQL_CONNECT, MYSQL_DB_USER, MYSQL_DB_PASSWD)
   }
 
-  /**
-   * 获取内容id的名称
-   **/
-  def getCidName(sql: String): mutable.HashMap[String, String] = {
-    val map = new mutable.HashMap[String, String]()
-    val init = initMySQL()
-    val rs = init.createStatement().executeQuery(sql)
-    while (rs.next()) {
-      map(rs.getString(2)) = rs.getString(1)
-      //            map.put(rs.getString(2), rs.getString(1))
-    }
-    init.close()
-    map
-  }
-
-
   def sortByScore(iterable: Iterable[(Int, Double)], topK: Int): String = {
     /**
      * recStr返回推荐的item组合拼接成string
@@ -229,81 +197,18 @@ object BehaviorRec {
     var recStr = ""
     if (listLen >= topK) {
       while (i < topK) {
-
-        recStr += sortList(i)._1.toString + "," + cidnameMap.getOrElse(sortList(i)._1.toString, " ") + "#"
+        recStr += sortList(i)._1.toString + "#"
         i += 1
       }
       recStr
     }
     else {
       while (i < listLen) {
-        recStr += sortList(i)._1.toString + "," + cidnameMap.getOrElse(sortList(i)._1.toString, " ") + "#"
+        recStr += sortList(i)._1.toString + "#"
         i += 1
       }
       recStr
     }
   }
 
-  def insertRedis(targetUser: String, recItemList: String): Unit = {
-    val jedis = initRedis(REDIS_IP, REDIS_PORT)
-    val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
-
-    val pipeline = jedis.pipelined()
-    val pipeline2 = jedis2.pipelined()
-
-    val map = new util.HashMap[String, String]()
-//    val key = targetUser + "_5_0"
-    //@2015-10-28
-//    val newkey = targetUser + "_5_10019864_0"
-
-    //@2015-11-09
-    val key = targetUser + "_5_10046284_0"
-
-    val arr = recItemList.split("#")
-    //    val keynum = jedis.llen(key).toInt
-    //    val keynum2 = jedis2.llen(key).toInt
-    //@2015-10-28
-    val keynum = jedis.llen(key).toInt
-    val keynum2 = jedis2.llen(key).toInt
-    if (arr.length > 2) {
-      var i = 0
-      while (i < arr.length) {
-        val recAssetId = ""
-        val recAssetName = arr(i).split(",")(1)
-        val recAssetPic = ""
-        val recContentId = arr(i).split(",")(0)
-        val recProviderId = ""
-        val rank = (i + 1).toString
-        map.put("assetId", recAssetId)
-        map.put("assetname", recAssetName)
-        map.put("assetpic", recAssetPic)
-        map.put("movieID", recContentId)
-        map.put("providerId", recProviderId)
-        map.put("rank", rank)
-        val value = JSONObject.fromObject(map).toString
-
-        pipeline.rpush(key, value)
-        pipeline2.rpush(key, value)
-        //@2015-10-28
-        //        pipeline.rpush(key, value)
-        //        pipeline2.rpush(key, value)
-        i += 1
-      }
-      //@2015-11-10
-//      pipeline.del(newkey)
-//      pipeline2.del(newkey)
-      //@2015-10-28
-      for (j <- 0 until keynum) {
-        pipeline.lpop(key)
-      }
-      pipeline.sync()
-      for (j <- 0 until keynum2) {
-        pipeline2.lpop(key)
-      }
-      pipeline2.sync()
-
-    }
-    jedis.disconnect()
-    jedis2.disconnect()
-  }
 }

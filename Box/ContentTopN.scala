@@ -34,7 +34,7 @@ object ContentTopN {
 
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
-  val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1;"
+  val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1 and sort_index is not null;"
   val MYSQL_QUERY_LEVELIDNAME = "select contentName,contentId,level1Id,if(level1Name='',1,level1Name),level2Id,if(level2Name='',1,level2Name),level3Id,if(level3Name='',1,level3Name),level4Id,if(level4Name='',1,level4Name) from ire_content_relation;"
   /**
    * redis配置信息
@@ -95,9 +95,11 @@ object ContentTopN {
     val timespan = timeSpans(params.timeSpan)
     val HDFS_DIR = s"hdfs://172.16.141.215:8020/data/ire/source/rec/xor/vod/{$timespan}.csv"
     //    val map = mapSingleCid(MYSQL_QUERY)
+
     val mapcidcount = mapSingleCidCount(MYSQL_QUERY)
     val maplevelidname = maplevelIdName(MYSQL_QUERY_LEVELIDNAME)
     val rawRdd = sc.textFile(HDFS_DIR)
+
     /**
      * 获取 观看时间,contentid
      **/
@@ -339,7 +341,7 @@ object ContentTopN {
     val rs = init.createStatement().executeQuery(sql)
     while (rs.next()) {
       //contentid作为key
-      if (rs.getString(3) != "10046284") {
+      if (rs.getString(3) != "10019864") {
         val key = rs.getString(2)
         val value = rs.getString(1) + "#" + rs.getString(3) + "#" + rs.getString(4) + "#" + rs.getString(5) + "#" + rs.getString(6) + "#" + rs.getString(7) + "#" + rs.getString(8) + "#" + rs.getString(9) + "#" + rs.getString(10)
         map.put(key, value)
