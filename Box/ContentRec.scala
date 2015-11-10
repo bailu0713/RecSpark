@@ -81,7 +81,6 @@ object ContentRec {
     }
   }
 
-
   def run(params: Params) {
     /**
      * 不用再在spark-submit中指定master local[*]造成申请过多资源报错，

@@ -4,7 +4,6 @@ import java.sql.{DriverManager, Connection}
 import java.text.SimpleDateFormat
 import java.util
 import java.util.{Date, Calendar}
-
 import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.{SparkContext, SparkConf}

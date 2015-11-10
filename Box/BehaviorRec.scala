@@ -4,7 +4,6 @@ import java.sql.{Connection, DriverManager}
 import java.text.SimpleDateFormat
 import java.util
 import java.util.{Calendar, Date}
-
 import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.mllib.recommendation.{ALS, Rating}
