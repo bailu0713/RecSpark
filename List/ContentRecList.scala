@@ -77,7 +77,7 @@ object ContentRecList {
 
   def run(params: Params) {
 
-    val conf = new SparkConf().setAppName("ContentRecNew")
+    val conf = new SparkConf().setAppName("ContentRecList")
     val sc = new SparkContext(conf)
     val non_series_data = new JdbcRDD(sc, initMySQL, "SELECT element_info.title, element_info.id, element_info.genre,element_info.create_time, element_info.country, ire_content_relation.level1Id,ire_content_relation.seriesType, ire_content_relation.level2Id, ire_content_relation.level3Id, ire_content_relation.level4Id from ire_content_relation INNER JOIN element_info ON ire_content_relation.contentId = element_info.id where element_info.id >=? and element_info.id <= ?;", 1, 2000000000, 10, extractValues)
       .filter(tup => tup._3 != "").filter(tup => tup._3 != "null")
@@ -159,7 +159,7 @@ object ContentRecList {
       .filter(tup => tup._7 == "1")
       .map { field => ((field._6, field._3, field._7, field._8), (field._1, field._2, parseYear(field._4), field._5))}
       .distinct()
-    val tvRdd = series_tv_rdd
+    val tvRdds = series_tv_rdd
       .join(series_tv_rdd)
 
       /**
@@ -188,12 +188,39 @@ object ContentRecList {
       .map(tup => (tup._1._2, (tup._1._1, tup._1._4, tup._1._5, tup._2)))
       .join(series_tv_data)
       //(contentid(目标要推荐的电视剧),title,level1Id,seriestype,iterable(推荐的其他的电视剧),sortindex)
-      .map(tup => (tup._1, sortByYearTopK(tup._2._1._4, params.recNumber)))
+      //      .map(tup => (tup._1, sortByYearTopK(tup._2._1._4, params.recNumber)))
+      .map(tup => (tup._1, sortByYearTopK(tup._2._1._4, params.recNumber), tup._2._2))
+
+    val tvRdd_catalogid = tvRdds.map(tup => (tup._1, tup._2))
+
+    val tvRdd_elementid = tvRdds.map(tup => (tup._3, tup._2))
+
+    val tv = tvRdd_elementid.map { tup =>
+      val arr = tup._1.split(";")
+      (arr, tup._2)
+    }
+
+      .map { tup =>
+      var res = ""
+      var i = 0
+      while (i < tup._1.length) {
+        res += tup._1(i) + "," + tup._2 + "@"
+        i += 1
+      }
+      res
+    }
+      .flatMap(line => line.split("@"))
+      .filter{tup=>tup.split(",").length==2}
+      .map { tup => val field = tup.split(","); (field(0), field(1))}
+
 
     val finalrdd = same_level1Id_genre_series_withnoyearnocountry
       .union(same_levele1Id_genre_series_withyearcountry)
-      .union(tvRdd)
-      .repartition(10)
+      .union(tvRdd_catalogid)
+      .union(tv)
+      .repartition(15)
+
+
     val df = new SimpleDateFormat("yyyyMMdd")
     val today = df.format(new Date())
     val HDFS_DIR_RECLIST = s"hdfs://172.16.141.215:8020/data/ire/result/rec/content/$today"
