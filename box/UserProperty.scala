@@ -34,7 +34,12 @@ object UserProperty {
   val MYSQL_DB_PASSWD = configs.BOX_MYSQL_DB_PASSWD
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
-  val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1;"
+  val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1 and sort_index is not null;"
+  //不用依赖ire_content_relation
+  // @date2015-11-20
+  //  val MYSQL_QUERY="select id,sort_index from catalog_info where type=1 and sort_index is not null;"
+
+
   val MYSQL_QUERY_LEVELIDNAME = "select contentName,contentId,level1Id from ire_content_relation;"
   val MYSQL_QUERY_DISTRICT = "select caid , districtindex from ire_user_district where caid>=? and caid<?;"
 

@@ -4,6 +4,7 @@ import java.sql.{Connection, DriverManager}
 import java.text.SimpleDateFormat
 import java.util
 import java.util.{Calendar, Date}
+
 import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.mllib.recommendation.{ALS, Rating}
@@ -42,6 +43,10 @@ object BehaviorRec {
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
   val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1 and sort_index is not null;"
+  //不用依赖ire_content_relation
+  // @date2015-11-20
+//  val MYSQL_QUERY="select id,sort_index from catalog_info where type=1 and sort_index is not null;"
+
   val MYSQL_CID_NAME = "select contentName,contentId from ire_content_relation;"
 
   /**
@@ -159,6 +164,7 @@ object BehaviorRec {
   /**
    * 设置读取数据文件的时间间隔,用时间天作为间隔参数
    **/
+
   def timeSpans(span: Int): String = {
     val df = new SimpleDateFormat("yyyyMMdd")
     val buffer = new StringBuffer()
@@ -264,7 +270,7 @@ object BehaviorRec {
     //@2015-10-28
     val keynum = jedis.llen(key).toInt
     val keynum2 = jedis2.llen(key).toInt
-    if (arr.length > 2) {
+    if (arr.length > 5) {
       var i = 0
       while (i < arr.length) {
         val recAssetId = ""

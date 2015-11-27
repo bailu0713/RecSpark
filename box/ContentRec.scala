@@ -81,6 +81,7 @@ object ContentRec {
     }
   }
 
+
   def run(params: Params) {
     /**
      * 不用再在spark-submit中指定master local[*]造成申请过多资源报错，
@@ -392,7 +393,7 @@ object ContentRec {
 
     val keynum = jedis.llen(key).toInt
     val keynum2 = jedis2.llen(key).toInt
-    if (reclist.split("#").length > 0) {
+    if (reclist.split("#").length > 5) {
       while (i < reclist.split("#").length) {
         val recAssetId = ""
         val recAssetName = reclist.split("#")(i).split(",")(0)
@@ -449,7 +450,7 @@ object ContentRec {
 
     val keynums = jedis.llen(keys).toInt
     val keynums2 = jedis2.llen(keys).toInt
-    if (reclist.split("#").length > 0) {
+    if (reclist.split("#").length > 5) {
       for (i <- 0 until reclist.split("#").length) {
         val recAssetId = ""
         val recAssetName = reclist.split("#")(i).split(",")(0)
@@ -490,7 +491,7 @@ object ContentRec {
 
       val keynum = jedis.llen(key).toInt
       val keynum2 = jedis2.llen(key).toInt
-      if (reclist.split("#").length > 2) {
+      if (reclist.split("#").length > 5) {
         for (i <- 0 until reclist.split("#").length) {
           val recAssetId = ""
           val recAssetName = reclist.split("#")(i).split(",")(0)

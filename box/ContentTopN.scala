@@ -4,6 +4,7 @@ import java.sql.{DriverManager, Connection}
 import java.text.SimpleDateFormat
 import java.util
 import java.util.{Date, Calendar}
+
 import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.{SparkContext, SparkConf}
@@ -16,7 +17,7 @@ import scopt.OptionParser
 object ContentTopN {
 
   private case class Params(
-                             recNumber: Int = 15,
+                             recNumber: Int = 20,
                              timeSpan: Int = 30,
                              taskId: String = null
                              )
@@ -34,6 +35,10 @@ object ContentTopN {
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
   val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1 and sort_index is not null;"
+  //不用依赖ire_content_relation
+  // @date2015-11-20
+  //  val MYSQL_QUERY="select id,sort_index from catalog_info where type=1 and sort_index is not null;"
+
   val MYSQL_QUERY_LEVELIDNAME = "select contentName,contentId,level1Id,if(level1Name='',1,level1Name),level2Id,if(level2Name='',1,level2Name),level3Id,if(level3Name='',1,level3Name),level4Id,if(level4Name='',1,level4Name) from ire_content_relation;"
   /**
    * redis配置信息
@@ -382,7 +387,7 @@ object ContentTopN {
 
     val keynum = jedis.llen(key).toInt
     val keynum2 = jedis2.llen(key).toInt
-    if (arr.length >2) {
+    if (arr.length >5) {
       var i = 0
       while (i < arr.length) {
         val recAssetId = ""
