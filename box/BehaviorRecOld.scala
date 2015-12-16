@@ -1,12 +1,9 @@
-package com.ctvit.ott
-
-/**
- * Created by BaiLu on 2015/9/18.
- */
+package com.ctvit.box
 
 import java.sql.{Connection, DriverManager}
 import java.text.SimpleDateFormat
 import java.util
+import java.util.regex.Pattern
 import java.util.{Calendar, Date}
 
 import com.ctvit.{AllConfigs, MysqlFlag}
@@ -21,38 +18,45 @@ import scala.collection.mutable
 /**
  * Created by BaiLu on 2015/8/18.
  */
-object OttBehaviorRec {
+object BehaviorRecOld {
 
   private case class Params(
                              numIterations: Int = 10,
                              lambda: Double = 1.0,
                              rank: Int = 15,
                              numBlocks: Int = 5,
-                             recNumber: Int = 15,
+                             recNumber: Int = 20,
                              timeSpan: Int = 90,
                              taskId: String = null
                              )
 
   //extends AbstractParams[Params]
-
   /**
    * mysql配置信息
    **/
   val configs = new AllConfigs
-  val MYSQL_HOST = configs.OTT_MYSQL_HOST
-  val MYSQL_PORT = configs.OTT_MYSQL_PORT
-  val MYSQL_DB = configs.OTT_MYSQL_DB
-  val MYSQL_DB_USER = configs.OTT_MYSQL_DB_USER
-  val MYSQL_DB_PASSWD = configs.OTT_MYSQL_DB_PASSWD
+  val MYSQL_HOST = configs.BOX_MYSQL_HOST
+  val MYSQL_PORT = configs.BOX_MYSQL_PORT
+  val MYSQL_DB = configs.BOX_MYSQL_DB
+  val MYSQL_DB_USER = configs.BOX_MYSQL_DB_USER
+  val MYSQL_DB_PASSWD = configs.BOX_MYSQL_DB_PASSWD
+
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
-  val MYSQL_CID_NAME = "select MovieName,MovieID from ottelementinfo;"
+  val MYSQL_QUERY = "select catalog_info.id,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1 and sort_index is not null;"
+  //不用依赖ire_content_relation
+  // @date2015-11-20
+  //  val MYSQL_QUERY="select id,sort_index from catalog_info where type=1 and sort_index is not null;"
+
+  val MYSQL_CID_NAME = "select contentName,contentId from ire_content_relation;"
 
   /**
    * redis配置信息
    **/
-  val REDIS_IP = configs.OTT_REDIS_IP
-  val REDIS_PORT = configs.OTT_REDIS_PORT
+
+  val REDIS_IP = configs.BOX_REDIS_IP
+  val REDIS_IP2 = configs.BOX_REDIS_IP2
+  val REDIS_PORT = configs.BOX_REDIS_PORT
 
 
   def main(args: Array[String]) {
@@ -61,7 +65,7 @@ object OttBehaviorRec {
     val startTime = System.nanoTime()
     val df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     val parser = new OptionParser[Params]("BehaviorRecParams") {
-      head("OTTBehaviorRecProduct: an example Recommendation app for plain text data. ")
+      head("BehaviorRecProduct: an example Recommendation app for plain text data. ")
       opt[Int]("numIterations")
         .text(s"number of iterations, default: ${defaultParams.numIterations}")
         .action((x, c) => c.copy(numIterations = x))
@@ -108,7 +112,7 @@ object OttBehaviorRec {
   val cidnameMap = getCidName(MYSQL_CID_NAME)
 
   private def run(params: Params) {
-    val conf = new SparkConf().setAppName("OttBehaviorRecommendaton")
+    val conf = new SparkConf().setAppName("BehaviorRecommendaton")
     val sc = new SparkContext(conf)
 
     /**
@@ -117,24 +121,30 @@ object OttBehaviorRec {
      **/
     //    def mapSingleCid(singleCid:String)=series_tv_data.map(tup=>if(tup._2.indexOf(singleCid)>=0) tup._1.take(1) else singleCid.take(1))
     val timespan = timeSpans(params.timeSpan)
-    val HDFS_DIR = s"hdfs://172.16.141.215:8020/data/ire/source/rec/ott/play/{$timespan}.csv"
-    //    val map = mapSingleCid(MYSQL_QUERY)
+
+    //    val HDFS_DIR = s"hdfs://172.16.141.215:8020/data/ire/source/rec/xor/vod/{$timespan}.csv"
+    val HDFS_DIR = s"hdfs://172.16.141.215:8020/data/ire/source/rec/vsp/vod/{$timespan}.csv"
+
+    val map = mapSingleCid(MYSQL_QUERY)
     val rawRdd = sc.textFile(HDFS_DIR)
-    val tripleRdd = rawRdd
-      .filter { line => val field = line.split(","); field(5).equals("1") && field(4) != ""}
-      //(userid,contentid)
-      .map { line => val field = line.split(","); (field(7), field(3))}
+
+    //@2015-12-04
+    val tripleRdd = rawRdd.map { line => val field = line.split(","); (field(6), field(5), field(7))}
       .filter(tup => tup._1.matches("\\d+"))
       .filter(tup => tup._2.matches("\\d+"))
+      .filter(tup => tup._3 == "ahyuvzq53adjct")
+
+      //    val tripleRdd = rawRdd.map { line => val field = line.split(","); (field(11), field(0))}
+      //      .filter(tup => tup._1.matches("\\d+"))
+      //      .filter(tup => tup._2.matches("\\d+"))
 
       /**
        * 对于单集电视剧将其映射为电视剧的catalogid
        **/
-      //      .map {
-      //      tup => if (map.containsKey(tup._2)) ((tup._1, map.get(tup._2)), 1)
-      //      else ((tup._1, tup._2), 1)
-      //    }
-      .map { tup => ((tup._1, tup._2), 1)}
+      .map {
+      tup => if (map.containsKey(tup._2)) ((tup._1, map.get(tup._2)), 1)
+      else ((tup._1, tup._2), 1)
+    }
       //过滤掉已经下线的contentid
       //      .filter(tup=>cidnameMap.contains(tup._1._2))
       //生成(userid,contentid,score)
@@ -165,6 +175,7 @@ object OttBehaviorRec {
   /**
    * 设置读取数据文件的时间间隔,用时间天作为间隔参数
    **/
+
   def timeSpans(span: Int): String = {
     val df = new SimpleDateFormat("yyyyMMdd")
     val buffer = new StringBuffer()
@@ -250,21 +261,37 @@ object OttBehaviorRec {
   }
 
   def insertRedis(targetUser: String, recItemList: String): Unit = {
+
+    val regx = "[^0-9]"
+    val pattern = Pattern.compile(regx)
+
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
+    val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
+
     val pipeline = jedis.pipelined()
+    val pipeline2 = jedis2.pipelined()
 
     val map = new util.HashMap[String, String]()
-    val key = targetUser + "_3_0"
-    val arr = recItemList.split("#")
+    //    val key = targetUser + "_5_0"
+    //@2015-10-28
+    //    val newkey = targetUser + "_5_10019864_0"
 
+    //@2015-11-09
+    val key = targetUser + "_5_10046284_0"
+
+    val arr = recItemList.split("#")
+    //    val keynum = jedis.llen(key).toInt
+    //    val keynum2 = jedis2.llen(key).toInt
+    //@2015-10-28
     val keynum = jedis.llen(key).toInt
-    if (arr.length >=keynum) {
+    val keynum2 = jedis2.llen(key).toInt
+    if (arr.length > 0) {
       var i = 0
       while (i < arr.length) {
         val recAssetId = ""
         val recAssetName = arr(i).split(",")(1)
         val recAssetPic = ""
-        val recContentId = arr(i).split(",")(0)
+        val recContentId = pattern.matcher(arr(i).split(",")(0)).replaceAll("")
         val recProviderId = ""
         val rank = (i + 1).toString
         map.put("assetId", recAssetId)
@@ -276,13 +303,27 @@ object OttBehaviorRec {
         val value = JSONObject.fromObject(map).toString
 
         pipeline.rpush(key, value)
+        pipeline2.rpush(key, value)
+        //@2015-10-28
+        //        pipeline.rpush(key, value)
+        //        pipeline2.rpush(key, value)
         i += 1
       }
+      //@2015-11-10
+      //      pipeline.del(newkey)
+      //      pipeline2.del(newkey)
+      //@2015-10-28
       for (j <- 0 until keynum) {
         pipeline.lpop(key)
       }
       pipeline.sync()
+      for (j <- 0 until keynum2) {
+        pipeline2.lpop(key)
+      }
+      pipeline2.sync()
+
     }
     jedis.disconnect()
+    jedis2.disconnect()
   }
 }

@@ -8,6 +8,8 @@ import java.sql.{DriverManager, ResultSet}
 import java.text.SimpleDateFormat
 import java.util.{Random, Collections, Date}
 import java.util
+import com.ctvit.AllConfigs
+import com.ctvit.MysqlFlag
 import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
 import org.apache.spark.rdd.JdbcRDD
@@ -19,11 +21,11 @@ import scopt.OptionParser
 /**
  * Created by BaiLu on 2015/7/24.
  */
-object ContentRec {
+object ContentRecDec {
 
 
   private case class Params(
-                             recNumber: Int = 15,
+                             recNumber: Int = 20,
                              taskId: String = null
                              )
 
@@ -36,15 +38,11 @@ object ContentRec {
 
   val MYSQL_CONNECT = "jdbc:mysql://" + MYSQL_HOST + ":" + MYSQL_PORT + "/" + MYSQL_DB
   val MYSQL_DRIVER = "com.mysql.jdbc.Driver"
-
-
   val REDIS_IP = configs.BOX_REDIS_IP
   val REDIS_IP2 = configs.BOX_REDIS_IP2
   val REDIS_PORT = configs.BOX_REDIS_PORT
 
   val NOW_YEAR = nowYear()
-
-
   def main(args: Array[String]) {
 
     val startTime = System.nanoTime()
@@ -83,10 +81,6 @@ object ContentRec {
 
 
   def run(params: Params) {
-    /**
-     * 不用再在spark-submit中指定master local[*]造成申请过多资源报错，
-     * 报错类型为ERROR LiveListenerBus: Listener EventLoggingListener threw an exception
-     **/
     val conf = new SparkConf().setAppName("ContentRecNew")
     val sc = new SparkContext(conf)
 
@@ -95,11 +89,11 @@ object ContentRec {
       * genre 0 movie/opera/e.g.  1 series TV
       */
 
-    val non_series_data = new JdbcRDD(sc, initMySQL, "SELECT element_info.title, element_info.id, element_info.genre,element_info.create_time, element_info.country, ire_content_relation.level1Id,ire_content_relation.seriesType, ire_content_relation.level2Id, ire_content_relation.level3Id, ire_content_relation.level4Id from ire_content_relation INNER JOIN element_info ON ire_content_relation.contentId = element_info.id where element_info.id >=? and element_info.id <= ?;", 1, 2000000000, 10, extractValues)
+    val non_series_data = new JdbcRDD(sc, initMySQL, "SELECT element_info.title, element_info.id, element_info.genre,element_info.create_time, element_info.country, ire_content_relation.level1Id,ire_content_relation.seriesType, ire_content_relation.level2Id, ire_content_relation.level3Id, ire_content_relation.level4Id from ire_content_relation INNER JOIN element_info ON ire_content_relation.contentId = element_info.id where ire_content_relation.level1Id='10046284' and element_info.id >=? and element_info.id <= ?;", 1, 2000000000, 10, extractValues)
       .filter(tup => tup._3 != "").filter(tup => tup._3 != "null")
-    val series_data = new JdbcRDD(sc, initMySQL, "SELECT catalog_info.title, catalog_info.id,catalog_info.genre,catalog_info.create_time,catalog_info.country, ire_content_relation.level1Id,ire_content_relation.seriesType ,ire_content_relation.level2Id, ire_content_relation.level3Id, ire_content_relation.level4Id from ire_content_relation INNER JOIN catalog_info ON ire_content_relation.contentId = catalog_info.id where catalog_info.id >=? and catalog_info.id <= ?;", 1, 2000000000, 10, extractValues)
+    val series_data = new JdbcRDD(sc, initMySQL, "SELECT catalog_info.title, catalog_info.id,catalog_info.genre,catalog_info.create_time,catalog_info.country, ire_content_relation.level1Id,ire_content_relation.seriesType ,ire_content_relation.level2Id, ire_content_relation.level3Id, ire_content_relation.level4Id from ire_content_relation INNER JOIN catalog_info ON ire_content_relation.contentId = catalog_info.id where ire_content_relation.level1Id='10046284' and catalog_info.id >=? and catalog_info.id <= ?;", 1, 2000000000, 10, extractValues)
       .filter(tup => tup._3 != "").filter(tup => tup._3 != "null")
-    val series_tv_data = new JdbcRDD(sc, initMySQL, "select ire_content_relation.contentId,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where catalog_info.type=1  and sort_index is not null and ire_content_relation.contentId>=? and ire_content_relation.contentId<=?;", 1, 2000000000, 10, extractSeriesTvValues)
+    val series_tv_data = new JdbcRDD(sc, initMySQL, "select ire_content_relation.contentId,catalog_info.sort_index from ire_content_relation inner join catalog_info on ire_content_relation.contentId=catalog_info.id where ire_content_relation.level1Id='10046284' and catalog_info.type=1  and sort_index is not null and ire_content_relation.contentId>=? and ire_content_relation.contentId<=?;", 1, 2000000000, 10, extractSeriesTvValues)
       .filter(tup => tup._2 != "").filter(tup => tup._2 != "null")
 
       /** 映射为tuple，电视剧映射为(catalog_id,element_id) */
@@ -238,41 +232,6 @@ object ContentRec {
     tvRdd
       .foreach(tup => insertTVRedis(tup._1, tup._3, tup._4, tup._6, tup._5))
 
-
-    /**
-     * #######################
-     * 针对数字学校的专题推荐
-     * #######################
-     * group by 按照level1Id和genre聚合
-     * ((level1Id,level2Id,level3Id,level4Id,seriestype),(title,contentid,year,country))
-     * educationRdd=8169
-     **/
-
-
-//    val educationRdd = rawRdd.filter(tup => tup._6 == "10001059")
-//      .map { field => ((field._6, field._8, field._9, field._10, field._7), (field._1, field._2, parseYear(field._4), field._5))}
-//      .filter(tup => tup._1._2 != "0")
-//      .distinct()
-//    val same_levelId_education = educationRdd
-//      .join(educationRdd)
-//      .filter(tup => tup._2._1._2 != tup._2._2._2)
-//      .filter(tup => tup._2._1._1 != tup._2._2._1)
-//      .map { tup =>
-//
-//      /**
-//       * 需要将level1Id,seriestype加入到结果集当中
-//       * ((title,contentid,country,level1Id,seriestype),(title,contentid,year,country))
-//       **/
-//      ((tup._2._1._1, tup._2._1._2, tup._2._1._4, tup._1._1, tup._1._5), (tup._2._2._1, tup._2._2._2, tup._2._2._3, tup._2._2._4))
-//    }
-//      .filter(tup => tup._2._3.toInt > NOW_YEAR - 20000)
-//      .groupByKey()
-//      .map(tup => ((tup._1._2, tup._1._4, tup._1._5), sortByYearTopK(tup._2, params.recNumber)))
-//
-//    same_levelId_education
-//      .foreach(tup => insertRedis(tup._1._1, tup._1._2, tup._1._3, tup._2))
-
-
     sc.stop()
   }
 
@@ -355,25 +314,16 @@ object ContentRec {
     }
   }
 
-
   /**
    * 将推荐的结果写入redis
    **/
   def insertRedis(targetContentId: String, targetlevel1Id: String, targetSeriesType: String, reclist: String): Unit = {
-    /**
-     * 先将数据从list表尾处增加，再从list表头出pop出原来的数据
-     * 保证list中一直有数据，不会数据丢失
-     **/
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
     val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
 
     val pipeline = jedis.pipelined()
     val pipeline2 = jedis2.pipelined()
-    //@2015-10-28
-//    val key = targetContentId + "_5_10019864_0"
-    //@date 2015-10-08
     val key = targetContentId + "_5_" + targetlevel1Id + "_0"
-    //    val key = targetContentId + "_5_" + targetlevel1Id + "_" + targetSeriesType
     var i = 0
     var j = 0
     val map = new util.HashMap[String, String]()
@@ -397,7 +347,6 @@ object ContentRec {
         val value = JSONObject.fromObject(map).toString
         pipeline.rpush(key, value)
         pipeline2.rpush(key, value)
-        //      jedis.rpush(key, value)
         i += 1
       }
       for (j <- 0 until keynum) {
@@ -414,10 +363,6 @@ object ContentRec {
   }
 
   def insertTVRedis(targetContentId: String, targetlevel1Id: String, targetSeriesType: String, sortIndex: String, reclist: String): Unit = {
-    /**
-     * 先将数据从list表尾处增加，再从list表头出pop出原来的数据
-     * 保证list中一直有数据，不会数据丢失
-     **/
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
     val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
 
@@ -425,16 +370,7 @@ object ContentRec {
     val pipeline2 = jedis2.pipelined()
 
     val map = new util.HashMap[String, String]()
-
-    /**
-     * 插入电视剧的catalogid
-     **/
-    //@2015-10-28
-//    val keys = targetContentId + "_5_10019864_0"
-    //@date 2015-10-08
     val keys = targetContentId + "_5_" + targetlevel1Id + "_0"
-    //    val keys = targetContentId + "_5_" + targetlevel1Id + "_" + targetSeriesType
-
     val keynums = jedis.llen(keys).toInt
     val keynums2 = jedis2.llen(keys).toInt
     if (reclist.split("#").length > 5) {
@@ -466,15 +402,8 @@ object ContentRec {
     }
     val targetTvArr = sortIndex.split(";")
     for (k <- 0 until targetTvArr.length) {
-      /**
-       * 对于多集电视剧只推每一集的ContentId，没有推整集的一个catalogid，所以没有用到参数中的targetContentId
-       **/
       val targetContent = targetTvArr(k)
-      //@2015-10-28
-//      val key = targetContent + "_5_10019864_0"
-      //@date 2015-10-08
       val key = targetContent + "_5_" + targetlevel1Id + "_0"
-      //      val key = targetContent + "_5_" + targetlevel1Id + "_" + targetSeriesType
 
       val keynum = jedis.llen(key).toInt
       val keynum2 = jedis2.llen(key).toInt
