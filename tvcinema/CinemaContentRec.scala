@@ -3,6 +3,7 @@ package com.ctvit.tvcinema
 import java.sql.{ResultSet, DriverManager}
 import java.text.SimpleDateFormat
 import java.util
+import java.util.regex.Pattern
 import java.util.{Random, Date}
 
 import com.ctvit.{MysqlFlag, AllConfigs}
@@ -102,9 +103,8 @@ object CinemaContentRec {
       //targetid,(recontentid,recontentname)
       .map(tup => (tup._2._1._1, (tup._2._2._1, tup._2._2._2)))
       .groupByKey(15)
-      .map(tup=>(tup._1,mapCidName(tup._2)))
+      .map(tup => (tup._1, mapCidName(tup._2)))
       .foreach(tup => insertRedis(tup._1, tup._2, params.recNumber))
-
     sc.stop()
   }
 
@@ -143,9 +143,9 @@ object CinemaContentRec {
     val listLen = list.length
     var i = 0
     var recStr = ""
-    while (i<listLen){
-      recStr+=list(i)._1+","+list(i)._2+"#"
-      i+=1
+    while (i < listLen) {
+      recStr += list(i)._1 + "," + list(i)._2 + "#"
+      i += 1
     }
     recStr
   }
@@ -200,7 +200,10 @@ object CinemaContentRec {
 
   //补齐方法，同一个栏目下的结果会出现相同的
   //需要补齐
-  def insertRedis(targetContent: String, iterable:String, recnumber: Int): Unit = {
+  def insertRedis(targetContent: String, iterable: String, recnumber: Int): Unit = {
+    val regx = "^[0-9]"
+    val pattern = Pattern.compile(regx)
+
     val jedis = initRedis(REDIS_IP, REDIS_PORT)
     val jedis2 = initRedis(REDIS_IP2, REDIS_PORT)
 
@@ -221,7 +224,7 @@ object CinemaContentRec {
           val recAssetId = ""
           val recAssetName = arr(indexArr(i)).split(",")(1)
           val recAssetPic = ""
-          val recContentId = arr(indexArr(i)).split(",")(0)
+          val recContentId = pattern.matcher(arr(indexArr(i)).split(",")(0)).replaceAll("")
           val recProviderId = ""
           val rank = (i + 1).toString
           map.put("assetId", recAssetId)

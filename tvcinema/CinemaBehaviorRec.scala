@@ -3,6 +3,7 @@ package com.ctvit.tvcinema
 import java.sql.{DriverManager, Connection}
 import java.text.SimpleDateFormat
 import java.util
+import java.util.regex.Pattern
 import java.util.{Calendar, Date}
 
 import com.ctvit.{MysqlFlag, AllConfigs}
@@ -233,6 +234,9 @@ object CinemaBehaviorRec {
     val pipeline = jedis.pipelined()
     val pipeline2 = jedis2.pipelined()
 
+    val regx="^[0-9]"
+    val pattern=Pattern.compile(regx)
+
     val map = new util.HashMap[String, String]()
     val key = targetUser + "_5_10001719_0"
     val arr = recItemList.split("#")
@@ -261,7 +265,7 @@ object CinemaBehaviorRec {
           map.put("assetId", recAssetId)
           map.put("assetname", recAssetName)
           map.put("assetpic", recAssetPic)
-          map.put("movieID", recContentIds(j))
+          map.put("movieID", pattern.matcher(recContentIds(j)).replaceAll(""))
           map.put("providerId", recProviderId)
           map.put("rank", rank)
           val value = JSONObject.fromObject(map).toString
@@ -285,7 +289,7 @@ object CinemaBehaviorRec {
         map.put("assetId", recAssetId)
         map.put("assetname", recAssetName)
         map.put("assetpic", recAssetPic)
-        map.put("movieID", contentlist(index))
+        map.put("movieID", pattern.matcher(contentlist(index)).replaceAll(""))
         map.put("providerId", recProviderId)
         map.put("rank", rank)
         val value = JSONObject.fromObject(map).toString
@@ -306,7 +310,7 @@ object CinemaBehaviorRec {
         map.put("assetId", recAssetId)
         map.put("assetname", recAssetName)
         map.put("assetpic", recAssetPic)
-        map.put("movieID", contentlist(index))
+        map.put("movieID", pattern.matcher(contentlist(index)).replaceAll(""))
         map.put("providerId", recProviderId)
         map.put("rank", rank)
         val value = JSONObject.fromObject(map).toString
