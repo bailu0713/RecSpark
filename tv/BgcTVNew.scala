@@ -1,3 +1,7 @@
+
+/**
+ * Created by BaiLu on 2015/12/17.
+ */
 package com.ctvit.tv
 
 import java.sql.{Connection, ResultSet, DriverManager}
@@ -15,9 +19,9 @@ import scopt.OptionParser
 /**
  * Created by BaiLu on 2015/8/24.
  */
-object BgcTV {
+object BgcTVNew {
 
-  val configs=new AllConfigs
+  val configs = new AllConfigs
   val MYSQL_HOST = configs.OTT_MYSQL_HOST
   val MYSQL_PORT = configs.OTT_MYSQL_PORT
   val MYSQL_DB = configs.OTT_MYSQL_DB
@@ -38,14 +42,24 @@ object BgcTV {
   val totalRecNum = 16
 
 
-  val SQL_CARTOON = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='cartoon' order by rand() limit "
-  val SQL_TV = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='tv' order by rand() limit "
-  val SQL_MOVIE = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='movie' order by rand() limit "
-  val SQL_VAIETY = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='variety' order by rand() limit "
-  val SQL_SPORT = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype<>'cartoon' and mtype<>'tv' and (plots like '%运动%' or tags like '%运动%') and tags not like '%爱情%' and tags not like '%纪实%' and tags not like '%恐怖%' and tags not like '%惊悚%' order by rand() limit "
-  val SQL_SCIENCE = "select name_cn,mediaid,ind,p_pic from mediaBestv where tags like '%科教%' and mtype='variety' order by rand() limit "
-  val SQL_FINANCE = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype<>'cartoon' and (plots like '%证券%' or adword like '%股市%' or plots like '%股市%' or plots like '%房地产%') order by rand() limit "
-  val SQL_ENTAINMENT = "select name_cn,mediaid,ind,p_pic from mediaBestv where mtype='variety' and tags not like '%纪实%' or (tags like '%纪实%' and tags like '%真人秀%' ) order by rand() limit "
+  //  val SQL_CARTOON = "select pname,pcode,episodeNum,bigimage1 from etl_aio_element_info where ptype='少儿'  order by rand() limit "
+  //  val SQL_TV = "select pname,pcode,episodeNum,bigimage1 from etl_aio_element_info where ptype='电视剧' order by rand() limit "
+  //  val SQL_MOVIE = "select pname,pcode,episodeNum,bigimage1 from etl_aio_element_info where type=0 and ptype='电影'  order by rand() limit "
+  //  val SQL_VAIETY = "select pname,pcode,episodeNum,bigimage1 from etl_aio_element_info where type=0 and ptype='纪实'  and bigimage1 <>'' order by rand() limit "
+  //  val SQL_SPORT = "select pname,pcode,episodeNum,bigimage1 from etl_aio_element_info where type=0 and ptype='体育'  and bigimage1 <>'' order by rand() limit "
+  //  val SQL_SCIENCE = "select pname,pcode,episodeNum,bigimage1 from etl_aio_element_info where type=0 and tags like '%自然%'  and bigimage1<>'' order by rand() limit "
+  //  val SQL_FINANCE = "select pname,pcode,episodeNum,bigimage1 from etl_aio_element_info where type=0 and ptype='财经'  and bigimage1 <>'' order by rand() limit "
+  //  val SQL_ENTAINMENT = "select pname,pcode,episodeNum,bigimage1 from etl_aio_element_info where type=0 and ptype='娱乐'  and bigimage1 <>'' order by rand() limit "
+
+
+  val SQL_CARTOON = "select categoryCode,categoryItemCode,categoryName,pCode,pType,pName,type,bigImage1 from etl_aio_element_info where ptype='少儿' and categoryItemCode<>'' order by rand() limit "
+  val SQL_TV = "select categoryCode,categoryItemCode,categoryName,pCode,pType,pName,type,bigImage1 from etl_aio_element_info where ptype='电视剧' and year=2015 order by rand() limit "
+  val SQL_MOVIE = "select categoryCode,categoryItemCode,categoryName,pCode,pType,pName,type,bigImage1 from etl_aio_element_info where type=0 and ptype='电影' and year=2015 order by rand() limit "
+  val SQL_VAIETY = "select categoryCode,categoryItemCode,categoryName,pCode,pType,pName,type,bigImage1 from etl_aio_element_info where type=0 and ptype='纪实'  and year=2015 order by rand() limit "
+  val SQL_SPORT = "select categoryCode,categoryItemCode,categoryName,pCode,pType,pName,type,bigImage1 from etl_aio_element_info where type=0 and ptype='体育'  and bigImage1<>'' and categoryItemCode<>'' order by rand() limit "
+  val SQL_SCIENCE = "select categoryCode,categoryItemCode,categoryName,pCode,pType,pName,type,bigImage1 from etl_aio_element_info where type=0 and tags like '%自然%'  and bigimage1<>'' and year=2015 order by rand() limit "
+  val SQL_FINANCE = "select categoryCode,categoryItemCode,categoryName,pCode,pType,pName,type,bigImage1 from etl_aio_element_info where type=0 and ptype='财经'  and bigimage1 <>'' and year=2015 order by rand() limit "
+  val SQL_ENTAINMENT = "select categoryCode,categoryItemCode,categoryName,pCode,pType,pName,type,bigImage1 from etl_aio_element_info where type=0 and ptype='娱乐' and bigimage1 <>'' and year=2015 order by rand() limit "
 
   private case class Params(taskId: String = null,
                             recNumber: Int = 18)
@@ -88,7 +102,7 @@ object BgcTV {
   }
 
   def run(params: Params): Unit = {
-    val conf = new SparkConf().setAppName("BGCTV")
+    val conf = new SparkConf().setAppName("BGCTVNew")
     val sc = new SparkContext(conf)
 
 
@@ -147,7 +161,7 @@ object BgcTV {
 
         if (column.equals("")) {
           val rddnocolumn = new JdbcRDD(sc, initMySQL, s"select a.channelId from (select channelId,channelName,programTitle,serviceId from livemedia where startTime<='$dbTimeLiveLoop' and endTime>'$dbTimeLiveLoop'  and channelId <> 'cctv1' and channelId<>'cctv5'and channelId <> 'cctv6' and channelId<>'cctv3' and channelId <> 'cctv8' and channelId<>'5927c7a6dd31f38686fafa073e2e13bc' and channelId<>'590e187a8799b1890175d25ec85ea352' and channelId<>'28502a1b6bf5fbe7c6da9241db596237' and channelId<>'9291c40ec1cec1281638720c74c7245f' and channelId<>'1ce026a774dba0d13dc0cef453248fb7' and channelId<>'5dfcaefe6e7203df9fbe61ffd64ed1c4' and channelId<>'23ab87816c24f90e5865116512e12c47' and channelId<>'20831bb807a45638cfaf81df1122024d' and channelId<>'55fc65ef82e92d0e1ccb2b3f200a7529' and channelId<>'c8bf387b1824053bdb0423ef806a2227' and channelId<>'c39a7a374d888bce3912df71bcb0d580' and channelId<>'6a3f44b1abfdfb49ddd051f9e683c86d' and channelId<>'dragontv' and channelId<>'322fa7b66243b8d0edef9d761a42f263' and channelId<>'antv' and wikiTitle<>'广告')a left join (select channel,tvRating,minute_time from live_audience_rating where minute_time= '$dbTimeAudienceLoop' and date_time='$dbTimeAudienceDay')b on a.serviceId=b.channel where a.serviceId>? and a.serviceId<? order by b.tvRating desc;", 1, 2000000000, 1, extractValues)
-          .distinct()
+            .distinct()
           val liveChannelIdCount = rddnocolumn.count().toInt
           rddnocolumn.take(liveChannelIdCount)
 
@@ -185,7 +199,7 @@ object BgcTV {
         }
         else {
           val rddcolumn = new JdbcRDD(sc, initMySQL, s"select a.channelId from (select channelId,channelName,programTitle,serviceId from livemedia where startTime<='$dbTimeLiveLoop' and endTime>'$dbTimeLiveLoop'  and programType='$column' and channelId <> 'cctv1' and channelId<>'cctv5'and channelId <> 'cctv6' and channelId<>'cctv3' and channelId <> 'cctv8' and channelId<>'5927c7a6dd31f38686fafa073e2e13bc' and channelId<>'590e187a8799b1890175d25ec85ea352' and channelId<>'28502a1b6bf5fbe7c6da9241db596237' and channelId<>'9291c40ec1cec1281638720c74c7245f' and channelId<>'1ce026a774dba0d13dc0cef453248fb7' and channelId<>'5dfcaefe6e7203df9fbe61ffd64ed1c4' and channelId<>'23ab87816c24f90e5865116512e12c47' and channelId<>'20831bb807a45638cfaf81df1122024d' and channelId<>'55fc65ef82e92d0e1ccb2b3f200a7529' and channelId<>'c8bf387b1824053bdb0423ef806a2227' and channelId<>'c39a7a374d888bce3912df71bcb0d580' and channelId<>'6a3f44b1abfdfb49ddd051f9e683c86d' and channelId<>'dragontv' and channelId<>'322fa7b66243b8d0edef9d761a42f263' and channelId<>'antv' and wikiTitle<>'广告')a left join (select channel,tvRating,minute_time from live_audience_rating where minute_time= '$dbTimeAudienceLoop' and date_time='$dbTimeAudienceDay')b on a.serviceId=b.channel where a.serviceId>? and a.serviceId<? order by b.tvRating desc;", 1, 2000000000, 1, extractValues)
-          .distinct()
+            .distinct()
 
           val liveChannelIdCount = rddcolumn.count().toInt
           rddcolumn.take(liveChannelIdCount)
@@ -217,8 +231,6 @@ object BgcTV {
             insertRedis(key, value)
           }
         }
-
-
       }
     }
 
@@ -226,7 +238,7 @@ object BgcTV {
   }
 
   def initRedis(redisip: String, redisport: Int): Jedis = {
-    val jedis = new Jedis(redisip, redisport,100000)
+    val jedis = new Jedis(redisip, redisport, 100000)
     jedis
   }
 
@@ -244,7 +256,6 @@ object BgcTV {
     case "科教" => SQL_SCIENCE
     case "财经" => SQL_FINANCE
     case "娱乐" => SQL_ENTAINMENT
-
   }
 
   def rec_vod_list(sql: String, number: Int): String = {
@@ -255,10 +266,21 @@ object BgcTV {
     val result = con.createStatement().executeQuery(finalsql)
     while (result.next()) {
       val mediaInnerMap = new util.HashMap[String, String]()
-      mediaInnerMap.put("name_cn", result.getString(1))
-      mediaInnerMap.put("mediaid", result.getString(2))
-      mediaInnerMap.put("index", result.getString(3))
-      mediaInnerMap.put("p_pic", result.getString(4))
+
+      //      mediaInnerMap.put("name_cn", result.getString(1))
+      //      mediaInnerMap.put("mediaid", result.getString(2))
+      //      mediaInnerMap.put("index", result.getString(3))
+      //      mediaInnerMap.put("p_pic", result.getString(4))
+
+      mediaInnerMap.put("categoryCode", result.getString(1))
+      mediaInnerMap.put("categoryItemCode", result.getString(2))
+      mediaInnerMap.put("categoryName", result.getString(3))
+      mediaInnerMap.put("pCode", result.getString(4))
+      mediaInnerMap.put("pType", result.getString(5))
+      mediaInnerMap.put("pName", result.getString(6))
+      mediaInnerMap.put("type", result.getString(7))
+      mediaInnerMap.put("bigImage1", result.getString(8))
+
       //list中添加的是hashmap的一个引用指向，
       // 如果将mediaInnerMap放在外面定义，list每次都引用一个对象，list会出现相同的结果
       mediaList.add(mediaInnerMap)
@@ -293,3 +315,4 @@ object BgcTV {
     jedis.disconnect()
   }
 }
+

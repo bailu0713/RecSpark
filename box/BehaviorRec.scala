@@ -111,9 +111,12 @@ object BehaviorRec {
     val rawRdd = sc.textFile(HDFS_DIR)
     mfdbAllIDS("10046284")
     val tripleRdd = rawRdd.map { line => val field = line.split(","); (field(6), field(5), field(7))}
+      .filter(tup=>tup._1.length<11 && tup._2.length<11)
       .filter(tup => tup._1.matches("\\d+"))
       .filter(tup => tup._2.matches("\\d+"))
       .filter(tup => tup._3 == "ahyuvzq53adjct")
+      //@date 2016-04-06过滤只包含免费点播的
+      .filter(tup=>set.contains(tup._2))
       // 对于单集电视剧将其映射为电视剧的catalogid
       .map {
       tup => if (mapcatalogid.containsKey(tup._2)) ((tup._1, mapcatalogid.get(tup._2)), 1)
@@ -122,7 +125,8 @@ object BehaviorRec {
       //生成(userid,contentid,score)
       .reduceByKey(_ + _)
 
-    val tripleRating = tripleRdd.map(tup => Rating(tup._1._1.toInt, tup._1._2.toInt, tup._2.toDouble))
+    val tripleRating = tripleRdd
+      .map(tup => Rating(tup._1._1.toInt, tup._1._2.toInt, tup._2.toDouble))
     val model = new ALS()
       .setIterations(params.numIterations)
       .setRank(params.rank)
@@ -211,14 +215,6 @@ object BehaviorRec {
     if (arr.length > 0) {
       for (i <- 0 until arr.length) {
         set.add(arr(i))
-        //        if (cidnameMap.contains(arr(i)) && mapcatalogid.containsKey(fatherid).equals(false)) {
-        //          //电影
-        //          set.add(arr(i))
-        //        }
-        //        if (mapcatalogid.containsKey(fatherid) && cidnameMap.contains(arr(i))) {
-        //          //电视剧
-        //          set.add(fatherid)
-        //        }
         val tmpchildid = arr(i)
         val sql = s"select id,sort_index from catalog_info where id=$tmpchildid and sort_index is not null;"
         val res = init.createStatement().executeQuery(sql)
@@ -276,7 +272,7 @@ object BehaviorRec {
     val arr = recItemList.split("#")
     val keynum = jedis.llen(key).toInt
     val keynum2 = jedis2.llen(key).toInt
-    if (arr.length > 0) {
+    if (arr.length > 10) {
       var i = 0
       while (i < arr.length) {
         val recAssetId = ""

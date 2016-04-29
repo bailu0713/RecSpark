@@ -12,6 +12,7 @@ import com.ctvit.AllConfigs
 import com.ctvit.MysqlFlag
 import com.ctvit.{AllConfigs, MysqlFlag}
 import net.sf.json.JSONObject
+import org.apache.hadoop.security.UserGroupInformation
 import org.apache.spark.{SparkContext, SparkConf}
 import redis.clients.jedis.Jedis
 import scopt.OptionParser
@@ -238,7 +239,7 @@ object ContentTopN {
 
     val keynum = jedis.llen(key).toInt
     val keynum2 = jedis2.llen(key).toInt
-    if (arr.length > 5) {
+    if (arr.length > 10) {
       var i = 0
       while (i < arr.length) {
         if (arr(i)._4 != "repeate") {

@@ -9,6 +9,8 @@ import java.sql.{Connection, DriverManager}
 class MysqlFlag {
 
   val MYSQL_FLAG_HOST = "172.16.168.236"
+//  val MYSQL_FLAG_HOST = "172.28.3.79"
+
   val MYSQL_FLAG_PORT = "3306"
   val MYSQL_FLAG_DB = "ire"
   val MYSQL_FLAG_DB_USER = "ire"

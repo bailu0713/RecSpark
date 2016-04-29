@@ -16,9 +16,6 @@ import redis.clients.jedis.Jedis
 import scopt.OptionParser
 
 
-/**
- * Created by BaiLu on 2015/7/24.
- */
 object ContentRec {
 
 
@@ -380,7 +377,7 @@ object ContentRec {
 
     val keynum = jedis.llen(key).toInt
     val keynum2 = jedis2.llen(key).toInt
-    if (reclist.split("#").length > 0) {
+    if (reclist.split("#").length > 5) {
       while (i < reclist.split("#").length) {
         val recAssetId = ""
         val recAssetName = reclist.split("#")(i).split(",")(0)
